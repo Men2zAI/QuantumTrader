@@ -3,36 +3,39 @@ import notifier
 import logger_engine
 import validator
 
-EMPRESAS = ["NVDA", "AAPL", "MSFT", "TSLA", "GOOGL"]
+# Lista expandida para mayor robustez estadística
+EMPRESAS = [
+    "NVDA", "AAPL", "MSFT", "TSLA", "GOOGL", # Tus originales
+    "AMZN", "META", "NFLX", "AMD", "INTC",   # Big Tech
+    "PYPL", "ADBE", "CSCO", "PEP", "COST",   # Consumo y Redes
+    "AVGO", "QCOM", "TMUS", "TXN", "AMAT"    # Semiconductores y Telecom
+]
 
 def ejecutar_analisis():
-    # 1. Fase de Auditoría: Comprobar qué pasó con las señales de ayer
-    print("⚖️ Auditando predicciones anteriores...")
+    # 1. Fase de Auditoría
+    print(f"⚖️ Auditando {len(EMPRESAS)} activos...")
     validator.validar_predicciones()
     
-    # 2. Fase de Escaneo: Analizar el mercado actual
-    print("🚀 Iniciando escaneo de mercado actual...")
+    # 2. Fase de Escaneo
+    print(f"🚀 Iniciando escaneo de {len(EMPRESAS)} señales de mercado...")
     
     for empresa in EMPRESAS:
         try:
-            # --- LA LÍNEA QUE FALTABA ---
-            # Primero descargamos los datos para que 'df' exista
             df = brain.obtener_datos(empresa)
-            
-            # Ahora pasamos 'df' y el nombre de la empresa al cerebro
             señal, precio, fiabilidad = brain.predecir(df, empresa)
             
-            # 3. Registrar en el CSV
+            # Registrar en el CSV
             logger_engine.guardar_registro(empresa, precio, señal, fiabilidad)
-            print(f"✅ Registro guardado para {empresa}")
             
-            # 4. Notificar por Telegram (solo si no es NEUTRAL)
-            if "NEUTRAL" not in señal:
-                mensaje = f"🤖 *QuantumTrader:* {empresa}\n📍 Precio: ${precio}\n📊 Señal: {señal}\n🎯 Fiabilidad: {fiabilidad}%"
+            # Solo notificar por Telegram señales de ALTA CONFIANZA
+            # Evitamos saturar el móvil con 20 mensajes
+            if "ALTA CONFIANZA" in señal:
+                mensaje = f"🔥 *ALTA CONFIANZA:* {empresa}\n📍 Precio: ${precio}\n📊 RSI/VOL Confirmado\n🎯 Fiabilidad: {fiabilidad}%"
                 notifier.enviar_telegram(mensaje)
+                print(f"📢 Señal fuerte enviada para {empresa}")
                 
         except Exception as e:
-            print(f"❌ Error analizando {empresa}: {e}")
+            print(f"❌ Error en sensor {empresa}: {e}")
 
 if __name__ == "__main__":
     ejecutar_analisis()
