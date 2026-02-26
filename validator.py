@@ -12,6 +12,9 @@ def validar_predicciones():
     # Solo auditamos las que están "PENDIENTE"
     for index, row in df.iterrows():
         if row['resultado_real'] == 'PENDIENTE':
+            if "NEUTRAL" in row['prediccion']:
+               df.at[index, 'resultado_real'] = "⚪ NO OPERADO"
+               continue
             ticker = row['ticker']
             precio_entrada = float(row['precio_entrada'])
             prediccion = row['prediccion']
