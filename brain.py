@@ -3,29 +3,40 @@ import pandas as pd
 
 def obtener_datos(symbol):
     """
-    Descarga los datos históricos del símbolo especificado.
+    Descarga los datos históricos asegurando un formato limpio.
     """
-    # Descargamos el último mes de datos con intervalos de 1 hora
-    df = ticker_data.download(symbol, period="1mo", interval="1h")
+    # Descargamos con auto_adjust para evitar columnas duplicadas
+    df = ticker_data.download(symbol, period="1mo", interval="1h", auto_adjust=True)
     if df.empty:
         raise ValueError(f"No se encontraron datos para {symbol}")
     return df
 
 def predecir(df):
     """
-    Lógica de IA para decidir si comprar o vender.
-    Mantiene la lógica de precisión direccional.
+    Lógica de IA corregida para evitar errores de Series ambiguas.
     """
-    # Obtenemos el precio actual (último cierre)
-    # Usamos .iloc[-1] para evitar errores de formato en versiones nuevas de pandas
-    precio_actual = round(float(df['Close'].iloc[-1]), 2)
+    # Extraemos el valor de cierre y lo convertimos a float puro
+    # .iloc[-1] toma el último, .item() lo convierte en un solo número
+    ultimo_cierre = df['Close'].iloc[-1]
     
-    # --- Simulación de lógica de IA (Aquí iría tu modelo entrenado) ---
-    # Por ahora usamos una lógica basada en medias móviles simple
-    sma_20 = df['Close'].rolling(window=20).mean().iloc[-1]
+    # Si yfinance devuelve un formato complejo, lo simplificamos aquí
+    if isinstance(ultimo_cierre, pd.Series):
+        ultimo_cierre = ultimo_cierre.iloc[0]
+        
+    precio_actual = round(float(ultimo_cierre), 2)
     
-    fiabilidad = 52.6 # Tu métrica de precisión actual
+    # Calculamos la Media Móvil (SMA) y nos aseguramos de que sea un solo número
+    sma_serie = df['Close'].rolling(window=20).mean()
+    ultimo_sma = sma_serie.iloc[-1]
     
+    if isinstance(ultimo_sma, pd.Series):
+        ultimo_sma = ultimo_sma.iloc[0]
+        
+    sma_20 = float(ultimo_sma)
+    
+    fiabilidad = 52.6 
+    
+    # Ahora la comparación es entre dos números simples, no listas
     if precio_actual > sma_20:
         señal = "COMPRA (BULLISH)"
     else:
