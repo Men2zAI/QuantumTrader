@@ -36,3 +36,5 @@ jobs:
           git add . 
           # Solo hace el commit si hay algo nuevo que subir
           git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: Registro de predicciones [skip ci]" && git push)
+      - name: Generar Reporte
+        run: python report_generator.py

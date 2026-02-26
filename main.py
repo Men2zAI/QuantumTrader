@@ -16,7 +16,7 @@ def ejecutar_analisis():
         try:
             # 1. Obtener datos y predicción
             datos = brain.obtener_datos(ticker)
-            señal, precio_actual, fiabilidad = brain.predecir(datos)
+            señal, precio, fiabilidad = brain.predecir(df, empresa)
             
             # 2. Registrar en el historial (CSV)
             logger_engine.registrar_decision(ticker, precio_actual, señal, fiabilidad)
