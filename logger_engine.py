@@ -1,24 +1,26 @@
-import pandas as pd
 import os
 from datetime import datetime
 
-def registrar_decision(ticker, precio, señal, fiabilidad):
+def guardar_registro(ticker, precio, prediccion, fiabilidad):
+    """
+    Guarda la predicción en el archivo CSV para su posterior auditoría.
+    """
     archivo = 'historial_decisiones.csv'
-    ahora = datetime.now().strftime("%Y-%m-%d %H:%M")
-    
-    datos = {
-        'fecha': [ahora],
-        'ticker': [ticker],
-        'precio_entrada': [precio],
-        'prediccion': [señal],
-        'fiabilidad': [f"{fiabilidad}%"],
-        'resultado_real': ['PENDIENTE']
-    }
-    
-    df_nuevo = pd.DataFrame(datos)
-    
-    if not os.path.isfile(archivo):
-        df_nuevo.to_csv(archivo, index=False)
-    else:
-        df_nuevo.to_csv(archivo, mode='a', header=False, index=False)
-    print(f"✅ Registro guardado para {ticker}")
+    # Encabezado estándar para que el validador y el generador de reportes no fallen
+    header = "fecha,ticker,precio_entrada,prediccion,fiabilidad,resultado_real\n"
+    fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    # Si el archivo no existe, lo creamos con el encabezado
+    if not os.path.exists(archivo):
+        with open(archivo, 'w') as f:
+            f.write(header)
+
+    # Preparamos la línea de datos con el estado inicial 'PENDIENTE'
+    nueva_linea = f"{fecha},{ticker},{precio},{prediccion},{fiabilidad}%,PENDIENTE\n"
+
+    # Añadimos la línea al final del archivo (modo append 'a')
+    try:
+        with open(archivo, 'a') as f:
+            f.write(nueva_linea)
+    except Exception as e:
+        print(f"❌ Error físico escribiendo en el CSV: {e}")
