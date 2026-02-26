@@ -32,6 +32,7 @@ jobs:
         run: |
           git config --global user.name "QuantumBot"
           git config --global user.email "bot@github.com"
-          git add historial_decisiones.csv
-          git commit -m "Auto-update: Registro de predicciones [skip ci]" || echo "No cambios"
-          git push
+          # El punto '.' añade todos los archivos nuevos o modificados
+          git add . 
+          # Solo hace el commit si hay algo nuevo que subir
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: Registro de predicciones [skip ci]" && git push)
