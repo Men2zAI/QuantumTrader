@@ -1,27 +1,30 @@
-import os
 import requests
-from dotenv import load_dotenv
+import os
 
-load_dotenv()
+def enviar_telegram(mensaje):
+    """
+    Envía un reporte de trading al chat de Telegram configurado.
+    """
+    # GitHub Actions inyecta estos valores desde los Secrets
+    token = os.getenv('TELEGRAM_TOKEN')
+    chat_id = os.getenv('TELEGRAM_CHAT_ID')
+    
+    if not token or not chat_id:
+        print("❌ Error: TELEGRAM_TOKEN o TELEGRAM_CHAT_ID no detectados en el entorno.")
+        return
 
-class TelegramNotifier:
-    def __init__(self):
-        self.token = os.getenv("TELEGRAM_TOKEN")
-        self.chat_id = os.getenv("TELEGRAM_CHAT_ID")
-        self.url = f"https://api.telegram.org/bot{self.token}/sendMessage"
-
-    def send_notification(self, message):
-        if not self.token or not self.chat_id:
-            print("❌ Error: Faltan credenciales en el .env")
-            return
-            
-        payload = {
-            "chat_id": self.chat_id,
-            "text": message,
-            "parse_mode": "HTML"
-        }
-        try:
-            response = requests.post(self.url, data=payload)
-            return response.json()
-        except Exception as e:
-            print(f"❌ Error de red en Notifier: {e}")
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        'chat_id': chat_id,
+        'text': mensaje,
+        'parse_mode': 'Markdown' # Para que las negritas y emojis se vean bien
+    }
+    
+    try:
+        response = requests.post(url, data=payload)
+        if response.status_code == 200:
+            print("✅ Notificación enviada con éxito.")
+        else:
+            print(f"⚠️ Telegram respondió con error: {response.text}")
+    except Exception as e:
+        print(f"❌ Fallo en la conexión de red con Telegram: {e}")
