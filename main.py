@@ -1,13 +1,17 @@
 import brain
 import notifier
 import logger_engine
+import validator # <--- Importamos el nuevo validador
 
-# Tu lista de vigilancia (puedes añadir las que quieras)
 EMPRESAS = ["NVDA", "AAPL", "MSFT", "TSLA", "GOOGL"]
 
 def ejecutar_analisis():
-    print("🚀 Iniciando escaneo de mercado...")
+    # 1. Primero auditamos el pasado
+    print("⚖️ Auditando predicciones anteriores...")
+    validator.validar_predicciones()
     
+    print("🚀 Iniciando escaneo de mercado actual...")
+        
     for ticker in EMPRESAS:
         try:
             # 1. Obtener datos y predicción
