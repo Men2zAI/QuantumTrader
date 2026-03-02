@@ -9,41 +9,55 @@ def generar_y_enviar_reporte():
     if not os.path.exists(archivo): return
 
     df = pd.read_csv(archivo)
-    # Filtrar solo las que ya tienen resultado (no PENDIENTE)
-    df = df[df['resultado_real'].str.contains('✅|❌', na=False)]
+    # Filtrar solo registros procesados (✅, ❌ o 🛑)
+    df = df[df['resultado_real'].str.contains('✅|❌|🛑', na=False)]
     
     if df.empty: return
 
-    # Extraer la ganancia en USD del texto "✅ (-1.09% | $-2.04)"
-    def extraer_usd(row):
-        match = re.search(r'\$\s?(-?\d+\.?\d*)', row['resultado_real'])
-        if not match: return 0.0
-        diff = float(match.group(1))
-        return -diff if "VENTA" in row['prediccion'] else diff
+    def extraer_datos_resultado(row):
+        texto = str(row['resultado_real'])
+        # Extraer el valor en dólares
+        match = re.search(r'\$\s?(-?\d+\.?\d*)', texto)
+        ganancia = float(match.group(1)) if match else 0.0
+        
+        # Determinar color según el tipo de resultado
+        if "✅" in texto:
+            color = 'green'
+        elif "🛑" in texto:
+            color = 'orange'  # ¡El color de seguridad!
+        else:
+            color = 'red'
+        
+        # Ajuste de signo: si era VENTA y el precio bajó (-$), es ganancia (+)
+        if "VENTA" in str(row['prediccion']):
+            ganancia = -ganancia
+            
+        return pd.Series([ganancia, color])
 
-    df['ganancia'] = df.apply(extraer_usd, axis=1)
-    resumen = df.groupby('ticker')['ganancia'].sum().reset_index()
+    df[['ganancia', 'color']] = df.apply(extraer_datos_resultado, axis=1)
+    resumen = df.groupby('ticker').agg({'ganancia': 'sum', 'color': 'last'}).reset_index()
     total_dia = df['ganancia'].sum()
 
     # --- Crear Gráfico ---
-    plt.figure(figsize=(10, 6))
-    colores = ['green' if x > 0 else 'red' for x in resumen['ganancia']]
-    plt.bar(resumen['ticker'], resumen['ganancia'], color=colores)
+    plt.figure(figsize=(12, 6))
+    plt.bar(resumen['ticker'], resumen['ganancia'], color=resumen['color'])
     plt.axhline(0, color='black', linewidth=0.8)
-    plt.title(f'Balance del Día: ${total_dia:.2f} USD')
+    plt.title(f'Balance del Día: ${total_dia:.2f} USD (Fusibles Activos 🛡️)')
     plt.ylabel('Ganancia/Pérdida ($)')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
     plt.savefig('reporte_diario.png')
 
     # --- Enviar a Telegram ---
     token = os.getenv('TELEGRAM_TOKEN')
     chat_id = os.getenv('TELEGRAM_CHAT_ID')
     
-    msg = f"📊 *Resumen de Operaciones*\n\n"
-    for _, r in resumen.iterrows():
-        msg += f"• {r['ticker']}: {'+' if r['ganancia']>0 else ''}${r['ganancia']:.2f}\n"
-    msg += f"\n💰 *Balance Total: ${total_dia:.2f} USD*"
+    msg = f"📊 *Resumen Robusto de Operaciones*\n\n"
+    msg += f"✅ Verde: Aciertos\n"
+    msg += f"🛑 Naranja: Stop Loss (Pérdida limitada)\n"
+    msg += f"❌ Rojo: Pérdida en curso\n\n"
+    msg += f"💰 *Balance Total: ${total_dia:.2f} USD*"
 
-    # Enviar Foto
     url_foto = f"https://api.telegram.org/bot{token}/sendPhoto"
     with open('reporte_diario.png', 'rb') as foto:
         requests.post(url_foto, data={'chat_id': chat_id, 'caption': msg, 'parse_mode': 'Markdown'}, files={'photo': foto})
