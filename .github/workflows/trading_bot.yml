@@ -2,14 +2,14 @@ name: Run QuantumTrader Daily
 
 on:
   schedule:
-    - cron: '35 14 * * 1-5' # Se ejecuta de lunes a viernes
-  workflow_dispatch: # Permite ejecutarlo manualmente
+    - cron: '35 14 * * 1-5' # 15:35 en Italia
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Permite al bot guardar cambios en el CSV
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -20,26 +20,26 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install matplotlib # Nos aseguramos de tener la librería de gráficos
+        run: pip install -r requirements.txt matplotlib requests pandas yfinance
 
-      - name: Run Bot (Analisis y Auditoria)
+      - name: 1. Analizar Rendimiento
+        run: python analizador_rendimiento.py
+
+      - name: 2. Ejecutar Bot Selectivo
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python main.py
 
-      - name: Generar y Enviar Reporte Visual
+      - name: 3. Generar Reporte Visual
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python report_generator.py
 
-      - name: Commit and Push changes
+      - name: Guardar Cambios
         run: |
           git config --global user.name "QuantumBot"
           git config --global user.email "bot@github.com"
           git add .
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: Registro de predicciones y reporte [skip ci]" && git push)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: Analisis y Elegidos [skip ci]" && git push)

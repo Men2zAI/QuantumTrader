@@ -2,40 +2,50 @@ import brain
 import notifier
 import logger_engine
 import validator
+import json
+import os
 
-# Lista expandida para mayor robustez estadística
+# Tu lista base de 20 sensores
 EMPRESAS = [
-    "NVDA", "AAPL", "MSFT", "TSLA", "GOOGL", # Tus originales
-    "AMZN", "META", "NFLX", "AMD", "INTC",   # Big Tech
-    "PYPL", "ADBE", "CSCO", "PEP", "COST",   # Consumo y Redes
-    "AVGO", "QCOM", "TMUS", "TXN", "AMAT"    # Semiconductores y Telecom
+    "NVDA", "AAPL", "MSFT", "TSLA", "GOOGL", "AMZN", "META", "NFLX", 
+    "AMD", "INTC", "PYPL", "ADBE", "CSCO", "PEP", "COST", "AVGO", 
+    "QCOM", "TMUS", "TXN", "AMAT"
 ]
 
 def ejecutar_analisis():
-    # 1. Fase de Auditoría
-    print(f"⚖️ Auditando {len(EMPRESAS)} activos...")
+    # 1. Auditoría del pasado
+    print("⚖️ Auditando resultados...")
     validator.validar_predicciones()
     
-    # 2. Fase de Escaneo
-    print(f"🚀 Iniciando escaneo de {len(EMPRESAS)} señales de mercado...")
+    # 2. Cargar quién tiene permiso para invertir hoy
+    elegidos = []
+    if os.path.exists('elegidos.json'):
+        with open('elegidos.json', 'r') as f:
+            elegidos = json.load(f)
+    else:
+        # Si es la primera vez, todos empiezan con oportunidad
+        elegidos = EMPRESAS
+
+    print(f"🚀 Iniciando escaneo selectivo...")
     
     for empresa in EMPRESAS:
         try:
             df = brain.obtener_datos(empresa)
             señal, precio, fiabilidad = brain.predecir(df, empresa)
             
-            # Registrar en el CSV
+            # SIEMPRE guardamos el registro para que el analizador aprenda
             logger_engine.guardar_registro(empresa, precio, señal, fiabilidad)
             
-            # Solo notificar por Telegram señales de ALTA CONFIANZA
-            # Evitamos saturar el móvil con 20 mensajes
-            if "ALTA CONFIANZA" in señal:
-                mensaje = f"🔥 *ALTA CONFIANZA:* {empresa}\n📍 Precio: ${precio}\n📊 RSI/VOL Confirmado\n🎯 Fiabilidad: {fiabilidad}%"
-                notifier.enviar_telegram(mensaje)
-                print(f"📢 Señal fuerte enviada para {empresa}")
-                
+            # FILTRO DE INVERSIÓN: Solo si es rentable y tiene alta confianza
+            if empresa in elegidos and "ALTA CONFIANZA" in señal and fiabilidad >= 55.0:
+                msg = f"💰 *OPERACIÓN ACTIVA:* {empresa}\n📍 Precio: ${precio}\n🎯 Fiabilidad: {fiabilidad}%"
+                notifier.enviar_telegram(msg)
+                print(f"🔥 Señal activa para {empresa}")
+            else:
+                print(f"👁️ Monitorización pasiva de {empresa}...")
+
         except Exception as e:
-            print(f"❌ Error en sensor {empresa}: {e}")
+            print(f"❌ Error en {empresa}: {e}")
 
 if __name__ == "__main__":
     ejecutar_analisis()
