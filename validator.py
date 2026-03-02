@@ -1,8 +1,8 @@
 import pandas as pd
 import yfinance as yf
 
-# CONFIGURACIÓN DE SEGURIDAD
-STOP_LOSS_LIMIT = -5.0  # Si perdemos más del 5%, cerramos la posición
+# CONFIGURACIÓN DE SEGURIDAD REFORZADA
+STOP_LOSS_LIMIT = -2.0  # Bajamos del 5% al 2% para proteger el capital
 
 def validar_predicciones():
     archivo = 'historial_decisiones.csv'
@@ -19,28 +19,22 @@ def validar_predicciones():
             precio_entrada = float(row['precio_entrada'])
             prediccion = row['prediccion']
             
-            # Obtener datos de mercado
             data = yf.Ticker(ticker).history(period="1d")
             if data.empty: continue
             precio_actual = data['Close'].iloc[-1]
             
-            # Calcular variación real
             diff_usd = precio_actual - precio_entrada
             diff_porc = (diff_usd / precio_entrada) * 100
             
-            # --- LÓGICA DE FUSIBLE (STOP LOSS) ---
-            # Si eres COMPRA y baja > 5%, o eres VENTA y sube > 5%
+            # Lógica de Fusible (Ahora al 2%)
             variacion_en_contra = -diff_porc if "COMPRA" in prediccion else diff_porc
             
             if variacion_en_contra < STOP_LOSS_LIMIT:
-                # El "fusible" saltó: limitamos la pérdida al 5%
                 pérdida_limitada_usd = precio_entrada * (STOP_LOSS_LIMIT / 100)
-                # Invertimos el signo para que la pérdida sea negativa en el log
+                # El signo depende de la dirección de la apuesta
                 pérdida_final = -abs(pérdida_limitada_usd) if "COMPRA" in prediccion else abs(pérdida_limitada_usd)
-                
                 df.at[index, 'resultado_real'] = f"🛑 STOP LOSS ({STOP_LOSS_LIMIT}% | ${round(pérdida_final, 2)})"
             else:
-                # Si no saltó el fusible, calculamos éxito normal
                 es_bullish = "COMPRA" in prediccion
                 exito = (es_bullish and diff_usd > 0) or (not es_bullish and diff_usd < 0)
                 icono = "✅" if exito else "❌"
