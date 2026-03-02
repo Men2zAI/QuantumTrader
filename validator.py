@@ -1,12 +1,25 @@
 import pandas as pd
 import yfinance as yf
+import json
+import os
 
-# CONFIGURACIÓN DE SEGURIDAD REFORZADA
-STOP_LOSS_LIMIT = -2.0  # Bajamos del 5% al 2% para proteger el capital
+STOP_LOSS_LIMIT = -2.0 # Tu nuevo límite de seguridad
+
+def actualizar_billetera(ganancia_porcentaje):
+    with open('wallet.json', 'r') as f:
+        wallet = json.load(f)
+    
+    # Calculamos cuánto ganamos/perdemos sobre la inversión de $100
+    cambio_dinero = wallet['inversion_por_operacion'] * (ganancia_porcentaje / 100)
+    wallet['saldo_total'] += cambio_dinero
+    
+    with open('wallet.json', 'w') as f:
+        json.dump(wallet, f, indent=4)
+    return wallet['saldo_total']
 
 def validar_predicciones():
     archivo = 'historial_decisiones.csv'
-    if not pd.io.common.file_exists(archivo): return
+    if not os.path.exists(archivo): return
     df = pd.read_csv(archivo)
     
     for index, row in df.iterrows():
@@ -23,21 +36,20 @@ def validar_predicciones():
             if data.empty: continue
             precio_actual = data['Close'].iloc[-1]
             
-            diff_usd = precio_actual - precio_entrada
-            diff_porc = (diff_usd / precio_entrada) * 100
+            diff_porc = ((precio_actual - precio_entrada) / precio_entrada) * 100
             
-            # Lógica de Fusible (Ahora al 2%)
-            variacion_en_contra = -diff_porc if "COMPRA" in prediccion else diff_porc
+            # Ajuste de signo según la apuesta (Compra o Venta)
+            es_bullish = "COMPRA" in prediccion
+            ganancia_porc_real = diff_porc if es_bullish else -diff_porc
             
-            if variacion_en_contra < STOP_LOSS_LIMIT:
-                pérdida_limitada_usd = precio_entrada * (STOP_LOSS_LIMIT / 100)
-                # El signo depende de la dirección de la apuesta
-                pérdida_final = -abs(pérdida_limitada_usd) if "COMPRA" in prediccion else abs(pérdida_limitada_usd)
-                df.at[index, 'resultado_real'] = f"🛑 STOP LOSS ({STOP_LOSS_LIMIT}% | ${round(pérdida_final, 2)})"
+            # --- Lógica de Dinero ---
+            if ganancia_porc_real <= STOP_LOSS_LIMIT:
+                final_porc = STOP_LOSS_LIMIT
+                nuevo_saldo = actualizar_billetera(final_porc)
+                df.at[index, 'resultado_real'] = f"🛑 STOP LOSS ({final_porc}% | ${nuevo_saldo:.2f})"
             else:
-                es_bullish = "COMPRA" in prediccion
-                exito = (es_bullish and diff_usd > 0) or (not es_bullish and diff_usd < 0)
-                icono = "✅" if exito else "❌"
-                df.at[index, 'resultado_real'] = f"{icono} ({round(diff_porc, 2)}% | ${round(diff_usd, 2)})"
+                nuevo_saldo = actualizar_billetera(ganancia_porc_real)
+                icono = "✅" if ganancia_porc_real > 0 else "❌"
+                df.at[index, 'resultado_real'] = f"{icono} ({round(ganancia_porc_real, 2)}% | ${nuevo_saldo:.2f})"
 
     df.to_csv(archivo, index=False)
