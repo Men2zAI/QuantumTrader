@@ -17,6 +17,22 @@ def actualizar_billetera(ganancia_porcentaje):
         json.dump(wallet, f, indent=4)
     return wallet['saldo_total']
 
+def registrar_balance_diario(saldo_final):
+    archivo_historial = 'balance_history.csv'
+    fecha = pd.Timestamp.now().strftime('%Y-%m-%d')
+    
+    nuevo_registro = pd.DataFrame({'fecha': [fecha], 'saldo': [saldo_final]})
+    
+    if os.path.exists(archivo_historial):
+        historial = pd.read_csv(archivo_historial)
+        # Evitar duplicados si corres el bot varias veces el mismo día
+        historial = historial[historial['fecha'] != fecha]
+        historial = pd.concat([historial, nuevo_registro])
+    else:
+        historial = nuevo_registro
+        
+    historial.to_csv(archivo_historial, index=False)
+
 def validar_predicciones():
     archivo = 'historial_decisiones.csv'
     if not os.path.exists(archivo): return

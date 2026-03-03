@@ -92,6 +92,28 @@ def generar_y_enviar_reporte():
     msg += f"\n🏦 *SALDO TOTAL:* `${saldo_actual:.2f} USD`"
     msg += f"\n\n🟢 Acierto | 🟠 Stop Loss | 🔴 Fallo"
 
+def calcular_metricas_riesgo():
+    if not os.path.exists('balance_history.csv'):
+        return 0, 0.0
+    
+    df_h = pd.read_csv('balance_history.csv')
+    saldos = df_h['saldo'].tolist()
+    
+    # 1. Calcular Racha Actual (Días seguidos en positivo)
+    racha = 0
+    for i in range(len(saldos)-1, 0, -1):
+        if saldos[i] > saldos[i-1]:
+            racha += 1
+        else:
+            break
+            
+    # 2. Calcular Drawdown (Caída máxima desde el pico)
+    max_pico = max(saldos) if saldos else 1000.0
+    saldo_actual = saldos[-1] if saldos else 1000.0
+    drawdown = ((max_pico - saldo_actual) / max_pico) * 100
+    
+    return racha, drawdown
+
     # 6. Enviar
     url = f"https://api.telegram.org/bot{token}/sendPhoto"
     with open('reporte_diario.png', 'rb') as foto:
