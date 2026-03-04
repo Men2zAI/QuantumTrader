@@ -5,19 +5,18 @@ import os
 
 STOP_LOSS_LIMIT = -2.0  # Fusible de seguridad al 2%
 
-def actualizar_billetera(ganancia_porcentaje):
+def actualizar_billetera(ganancia_porcentaje, monto_invertido):
     archivo = 'wallet.json'
     with open(archivo, 'r') as f:
         wallet = json.load(f)
     
-    # Ganancia real sobre los $100 invertidos
-    cambio_dinero = wallet['inversion_por_operacion'] * (ganancia_porcentaje / 100)
+    # El cambio se calcula sobre el monto específico (50, 100 o 200)
+    cambio_dinero = monto_invertido * (ganancia_porcentaje / 100)
     wallet['saldo_total'] += cambio_dinero
     
     with open(archivo, 'w') as f:
         json.dump(wallet, f, indent=4)
     
-    registrar_balance_diario(wallet['saldo_total'])
     return wallet['saldo_total']
 
 def registrar_balance_diario(saldo_final):
