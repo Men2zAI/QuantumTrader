@@ -16,6 +16,21 @@ def calcular_proyeccion_roi():
     dias_duplicar = int((2000 - saldo_act) / promedio_dia)
     return f"🚀 *ROI:* `{roi_total:.2f}%` | *Meta $2,000:* `{dias_duplicar} días` aprox."
 
+def generar_grafico_comparativo(df_resultados):
+    # Clasificamos las operaciones pasadas por el monto invertido
+    # $50 = Exploración, $100 = Estándar, $200 = Convicción
+    plt.figure(figsize=(10, 6))
+    
+    categorias = {50.0: 'Exploración', 100.0: 'Estándar', 200.0: 'Convicción'}
+    df_resultados['categoria'] = df_resultados['monto'].map(categorias)
+    
+    resumen = df_resultados.groupby('categoria')['ganancia_dolares'].sum()
+    
+    resumen.plot(kind='bar', color=['blue', 'orange', 'green'])
+    plt.title('Rendimiento por Estrategia de Inversión')
+    plt.ylabel('Ganancia Neta (USD)')
+    plt.savefig('comparativa_estrategias.png')
+    
 def generar_y_enviar_reporte():
     df = pd.read_csv('historial_decisiones.csv')
     df = df[df['resultado_real'].str.contains('✅|❌|🛑', na=False)].copy()
