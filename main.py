@@ -51,7 +51,12 @@ def ejecutar_analisis_dinamico():
         notifier.enviar_telegram("📡 *Escaneo:* No hay señales claras (>52%). Capital de $1004.68 protegido. 🛡️")
     else:
         for pick in elite_picks:
+            # ... dentro del bucle de elite_picks en main.py ...
             fiab = pick['fiabilidad']
+            monto = 200.0 if fiab >= 60.0 else (100.0 if fiab >= 55.0 else 50.0)
+        
+        # Guardamos con el nuevo dato de monto
+            logger_engine.guardar_registro(pick['ticker'], pick['precio'], pick['señal'], fiab, monto)
             
             # Lógica de asignación de recursos según potencia de señal
             if fiab >= 60.0:

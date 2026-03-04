@@ -1,26 +1,25 @@
+import pandas as pd
 import os
-from datetime import datetime
 
-def guardar_registro(ticker, precio, prediccion, fiabilidad):
-    """
-    Guarda la predicción en el archivo CSV para su posterior auditoría.
-    """
+def guardar_registro(ticker, precio, prediccion, fiabilidad, monto):
     archivo = 'historial_decisiones.csv'
-    # Encabezado estándar para que el validador y el generador de reportes no fallen
-    header = "fecha,ticker,precio_entrada,prediccion,fiabilidad,resultado_real\n"
-    fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    # Si el archivo no existe, lo creamos con el encabezado
-    if not os.path.exists(archivo):
-        with open(archivo, 'w') as f:
-            f.write(header)
-
-    # Preparamos la línea de datos con el estado inicial 'PENDIENTE'
-    nueva_linea = f"{fecha},{ticker},{precio},{prediccion},{fiabilidad}%,PENDIENTE\n"
-
-    # Añadimos la línea al final del archivo (modo append 'a')
-    try:
-        with open(archivo, 'a') as f:
-            f.write(nueva_linea)
-    except Exception as e:
-        print(f"❌ Error físico escribiendo en el CSV: {e}")
+    fecha = pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')
+    
+    nuevo_dato = pd.DataFrame({
+        'fecha': [fecha],
+        'ticker': [ticker],
+        'precio_entrada': [precio],
+        'prediccion': [prediccion],
+        'fiabilidad': [fiabilidad],
+        'monto': [monto], # <-- Columna nueva vital para el ROI
+        'resultado_real': ['PENDIENTE']
+    })
+    
+    if os.path.exists(archivo):
+        df = pd.read_csv(archivo)
+        df = pd.concat([df, nuevo_dato], ignore_index=True)
+    else:
+        df = nuevo_dato
+        
+    df.to_csv(archivo, index=False)
+    print(f"📝 Registro guardado para {ticker} con inversión de ${monto}")
