@@ -5,6 +5,7 @@ import validator
 import json
 import os
 import pandas as pd
+import report_generator
 
 EMPRESAS = ["NVDA", "AAPL", "MSFT", "TSLA", "GOOGL", "AMZN", "META", "NFLX", 
             "AMD", "INTC", "PYPL", "ADBE", "CSCO", "PEP", "COST", "AVGO", 
@@ -87,6 +88,8 @@ def ejecutar_analisis_dinamico():
             notifier.enviar_telegram(msg)
         
         notifier.enviar_telegram(f"✅ Escaneo finalizado con {len(elite_picks)} nuevas señales dinámicas.")
-
+    
+    report_generator.generar_y_enviar_reporte()
+    
 if __name__ == "__main__":
     ejecutar_analisis_dinamico()
