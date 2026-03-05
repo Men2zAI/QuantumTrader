@@ -1,45 +1,42 @@
-name: Run QuantumTrader Daily
+name: QuantumTrader AI Bot
 
 on:
   schedule:
-    - cron: '35 14 * * 1-5' # 15:35 en Italia
-  workflow_dispatch:
+    # Ejecuta en el minuto 45 de cada hora, desde las 14:00 hasta las 21:00 (UTC)
+    # Esto equivale a las 15:45 hasta las 22:45 en Italia (mercado abierto).
+    # De lunes (1) a viernes (5).
+    - cron: '45 14-21 * * 1-5'
+  workflow_dispatch: # Permite ejecutarlo manualmente con el botón en GitHub
 
 jobs:
-  build:
+  run-bot:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    - name: Checkout del repositorio
+      uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt matplotlib requests pandas yfinance
+    - name: Instalar dependencias
+      run: |
+        python -m pip install --upgrade pip
+        pip install pandas yfinance requests matplotlib scikit-learn
 
-      - name: 1. Analizar Rendimiento
-        run: python analizador_rendimiento.py
+    - name: Ejecutar la Inteligencia Artificial (main.py)
+      env:
+        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: python main.py
 
-      - name: 2. Ejecutar Bot Selectivo
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python main.py
-
-      - name: 3. Generar Reporte Visual
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python report_generator.py
-
-      - name: Guardar Cambios
-        run: |
-          git config --global user.name "QuantumBot"
-          git config --global user.email "bot@github.com"
-          git add .
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: Analisis y Elegidos [skip ci]" && git push)
+    - name: Sincronizar y guardar resultados en GitHub
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git add historial_decisiones.csv wallet.json reporte_diario.png elegidos.json balance_history.csv
+        # Solo hace commit si hay cambios reales en los archivos
+        git diff --quiet && git diff --staged --quiet || git commit -m "🤖 Actualización automática: Rastreo de mercado y Billetera"
+        git push origin main
