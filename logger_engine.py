@@ -11,7 +11,7 @@ def guardar_registro(ticker, precio, prediccion, fiabilidad, monto):
         'precio_entrada': [precio],
         'prediccion': [prediccion],
         'fiabilidad': [fiabilidad],
-        'monto': [monto], # <-- Columna nueva vital para el ROI
+        'monto': [monto], # <-- Columna nueva para rastrear la inversión dinámica
         'resultado_real': ['PENDIENTE']
     })
     
@@ -22,4 +22,3 @@ def guardar_registro(ticker, precio, prediccion, fiabilidad, monto):
         df = nuevo_dato
         
     df.to_csv(archivo, index=False)
-    print(f"📝 Registro guardado para {ticker} con inversión de ${monto}")
