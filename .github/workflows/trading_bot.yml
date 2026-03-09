@@ -23,8 +23,8 @@ jobs:
     - name: Instalar Infraestructura Cuantitativa
       run: |
         python -m pip install --upgrade pip
-        # 1. Librerías Core y Datos
-        pip install pandas yfinance requests matplotlib scikit-learn
+        # 1. Librerías Core y Datos (INCLUYENDO WEBSOCKETS AHORA)
+        pip install pandas yfinance requests matplotlib scikit-learn websockets
         # 2. Machine Learning y API Broker
         pip install xgboost joblib alpaca-trade-api
         # 3. Deep Learning (TensorFlow solo CPU)
