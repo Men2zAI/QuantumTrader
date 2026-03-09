@@ -23,11 +23,11 @@ jobs:
     - name: Instalar Infraestructura Cuantitativa
       run: |
         python -m pip install --upgrade pip
-        # 1. Librerías Core y Datos (INCLUYENDO WEBSOCKETS AHORA)
-        pip install pandas yfinance requests matplotlib scikit-learn websockets
-        # 2. Machine Learning y API Broker
-        pip install xgboost joblib alpaca-trade-api
-        # 3. Deep Learning (TensorFlow solo CPU)
+        # 1. Forzar limpieza de caché y versiones máximas para el motor de red
+        pip install --upgrade yfinance "websockets>=11.0"
+        # 2. Librerías Core
+        pip install pandas requests matplotlib scikit-learn xgboost joblib alpaca-trade-api
+        # 3. Deep Learning (TensorFlow CPU)
         pip install tensorflow-cpu
         # 4. Procesamiento de Lenguaje (Torch CPU y Transformers)
         pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
