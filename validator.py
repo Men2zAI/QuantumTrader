@@ -4,8 +4,10 @@ import json
 import os
 from datetime import datetime
 
-STOP_LOSS_LIMIT = -2.0 
-TAKE_PROFIT_LIMIT = 4.0
+# ⚙️ PARÁMETROS DEL ACTUADOR DINÁMICO
+STOP_LOSS_INICIAL = -2.0 
+ACTIVACION_TRAILING = 1.5  # Empieza a proteger ganancias después de superar el +1.5%
+DISTANCIA_TRAILING = 1.0   # Persigue el precio a un 1.0% de distancia del pico máximo
 
 def actualizar_billetera(ganancia_porcentaje, monto_invertido):
     archivo = 'wallet.json'
@@ -25,7 +27,11 @@ def validar_predicciones():
     if not os.path.exists(archivo): return
     df = pd.read_csv(archivo)
     
-    # SENSOR DE TIEMPO: Detecta si es Viernes (4) y es el final de la sesión en Wall Street (>20:00 UTC)
+    # Inyectamos la columna de memoria si es la primera vez que usamos Trailing Stop
+    if 'max_ganancia' not in df.columns:
+        df['max_ganancia'] = 0.0
+        
+    # SENSOR DE TIEMPO: Detecta si es Viernes y es el final de la sesión
     hora_actual_utc = datetime.utcnow()
     es_cierre_semana = hora_actual_utc.weekday() == 4 and hora_actual_utc.hour >= 20
     
@@ -54,24 +60,43 @@ def validar_predicciones():
                 ganancia_minima = ((p_entrada - p_max) / p_entrada) * 100
                 ganancia_cierre = ((p_entrada - p_actual) / p_entrada) * 100
             
-            # 1. ¿Tocó el Stop Loss?
-            if ganancia_minima <= STOP_LOSS_LIMIT:
-                saldo = actualizar_billetera(STOP_LOSS_LIMIT, monto_op)
-                df.at[index, 'resultado_real'] = f"🛑 STOP LOSS ({STOP_LOSS_LIMIT}% | ${saldo:.2f})"
+            # --- MOTOR TRAILING STOP DINÁMICO ---
+            max_historico = float(row['max_ganancia'])
             
-            # 2. ¿Alcanzó el Take Profit?
-            elif ganancia_maxima >= TAKE_PROFIT_LIMIT:
-                saldo = actualizar_billetera(TAKE_PROFIT_LIMIT, monto_op)
-                df.at[index, 'resultado_real'] = f"🎯 TAKE PROFIT ({TAKE_PROFIT_LIMIT}% | ${saldo:.2f})"
+            # 1. Actualizar el récord máximo de ganancias en la memoria
+            if ganancia_maxima > max_historico:
+                max_historico = ganancia_maxima
+                df.at[index, 'max_ganancia'] = max_historico
+                
+            # 2. Calcular el límite actual (Muro de hierro)
+            if max_historico >= ACTIVACION_TRAILING:
+                # El stop loss sube para bloquear ganancias (Ej. Si sube a +4%, el stop se pone en +3%)
+                stop_dinamico = max_historico - DISTANCIA_TRAILING
+            else:
+                # El stop loss se queda en su nivel original de defensa (-2.0%)
+                stop_dinamico = STOP_LOSS_INICIAL
+                
+            # --- EVALUACIÓN DE SALIDAS ---
             
-            # 3. PROTOCOLO DE DEFENSA: Cierre obligatorio de Viernes
+            # ¿El precio cayó por debajo de nuestro muro dinámico?
+            if ganancia_minima <= stop_dinamico:
+                saldo = actualizar_billetera(stop_dinamico, monto_op)
+                
+                # Reporte inteligente para saber si perdimos o aseguramos ganancias
+                if stop_dinamico > 0:
+                    df.at[index, 'resultado_real'] = f"🚀 TRAILING STOP (+{round(stop_dinamico, 2)}% | ${saldo:.2f})"
+                else:
+                    df.at[index, 'resultado_real'] = f"🛑 STOP LOSS ({round(stop_dinamico, 2)}% | ${saldo:.2f})"
+            
+            # PROTOCOLO DE DEFENSA: Cierre obligatorio de Viernes
             elif es_cierre_semana:
                 saldo = actualizar_billetera(ganancia_cierre, monto_op)
                 icono = "⏳" if ganancia_cierre > 0 else "🛡️"
                 df.at[index, 'resultado_real'] = f"{icono} LIQUIDACIÓN VIERNES ({round(ganancia_cierre, 2)}% | ${saldo:.2f})"
             
-            # 4. Paciencia: Sigue PENDIENTE de Lunes a Jueves (o viernes temprano)
+            # Paciencia: El precio sigue subiendo y empujando el Trailing Stop hacia arriba
             else:
                 pass 
 
+    # Guardamos la memoria actualizada
     df.to_csv(archivo, index=False)

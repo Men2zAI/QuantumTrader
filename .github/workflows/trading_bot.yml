@@ -1,12 +1,10 @@
-name: QuantumTrader AI Bot
+name: QuantumTrader AI Bot V9
 
 on:
   schedule:
-    # Ejecuta en el minuto 45 de cada hora, desde las 14:00 hasta las 21:00 (UTC)
-    # Esto equivale a las 15:45 hasta las 22:45 en Italia (mercado abierto).
-    # De lunes (1) a viernes (5).
+    # Se ejecuta a las 15:45 hasta las 22:45 hora de Italia (Mercado de NY abierto)
     - cron: '45 14-21 * * 1-5'
-  workflow_dispatch: # Permite ejecutarlo manualmente con el botón en GitHub
+  workflow_dispatch:
 
 jobs:
   run-bot:
@@ -20,23 +18,35 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
+        cache: 'pip' # Acelera las ejecuciones futuras guardando las librerías
 
-    - name: Instalar dependencias
+    - name: Instalar Infraestructura Cuantitativa
       run: |
         python -m pip install --upgrade pip
+        # 1. Librerías Core y Datos
         pip install pandas yfinance requests matplotlib scikit-learn
+        # 2. Machine Learning y API Broker
+        pip install xgboost joblib alpaca-trade-api
+        # 3. Deep Learning (TensorFlow solo CPU)
+        pip install tensorflow-cpu
+        # 4. Procesamiento de Lenguaje (Torch CPU y Transformers)
+        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        pip install transformers
 
-    - name: Ejecutar la Inteligencia Artificial (main.py)
+    - name: Ejecutar Orquestador V9
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+        ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        ALPACA_BASE_URL: https://paper-api.alpaca.markets
       run: python main.py
 
-    - name: Sincronizar y guardar resultados en GitHub
+    - name: Sincronizar y guardar resultados
       run: |
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        git add historial_decisiones.csv wallet.json reporte_diario.png elegidos.json balance_history.csv
-        # Solo hace commit si hay cambios reales en los archivos
-        git diff --quiet && git diff --staged --quiet || git commit -m "🤖 Actualización automática: Rastreo de mercado y Billetera"
+        # Eliminamos wallet.json del rastreo porque ya usamos Alpaca
+        git add historial_decisiones.csv reporte_diario.png balance_history.csv
+        git diff --quiet && git diff --staged --quiet || git commit -m "🤖 Actualización V9: Barrido de IA y Operaciones Alpaca"
         git push origin main

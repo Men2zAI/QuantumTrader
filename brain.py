@@ -9,8 +9,8 @@ warnings.filterwarnings('ignore')
 
 def crear_features_produccion(df, tipo="ticker"):
     """
-    Motor de Extracción: Transforma los datos crudos en la matriz de sensores
-    exacta que el modelo XGBoost espera recibir.
+    Motor de Extracción V7: Transforma los datos crudos en la matriz de sensores
+    exacta que el modelo XGBoost Bayesiano (con Volumen) espera recibir.
     """
     df['Retorno'] = df['Close'].pct_change()
     
@@ -51,19 +51,30 @@ def crear_features_produccion(df, tipo="ticker"):
         ranges = pd.concat([high_low, high_close, low_close], axis=1)
         df['ATR'] = ranges.max(axis=1).rolling(14).mean()
 
-        # Retenemos 'Close' temporalmente para que el orquestador pueda leer el precio de compra
-        features_ticker = ['Close', 'Retorno', 'RSI', 'MACD_Hist', 'Distancia_BB_Inf', 'ATR', 'SMA_20', 'SMA_50']
+        # 🌊 INYECCIÓN DE SENSORES VOLUMÉTRICOS PARA PRODUCCIÓN 🌊
+        # 1. OBV (On-Balance Volume)
+        df['OBV'] = (np.sign(df['Close'].diff()) * df['Volume']).fillna(0).cumsum()
+        
+        # 2. VWAP Móvil
+        precio_tipico = (df['High'] + df['Low'] + df['Close']) / 3
+        df['VWAP_14'] = (precio_tipico * df['Volume']).rolling(window=14).sum() / df['Volume'].rolling(window=14).sum()
+        df['Distancia_VWAP'] = (df['Close'] - df['VWAP_14']) / df['VWAP_14']
+
+        # Retenemos 'Close' temporalmente para que el orquestador pueda leer el precio
+        # NOTA IMPORTANTE: El orden debe coincidir con el entrenamiento.
+        features_ticker = ['Close', 'Retorno', 'RSI', 'MACD_Hist', 'Distancia_BB_Inf', 'ATR', 'SMA_20', 'SMA_50', 'OBV', 'Distancia_VWAP']
         return df[features_ticker]
 
 def obtener_datos(ticker):
     """
-    Multiplexor: Descarga y sincroniza la red de sensores (Micro + Macro + Miedo)
+    Multiplexor: Descarga y sincroniza la red de sensores (Micro + Macro + Miedo + Volumen)
     para alimentar al orquestador principal.
     """
     try:
-        df_ticker = yf.Ticker(ticker).history(period="100d", interval="1d")
-        df_qqq = yf.Ticker("QQQ").history(period="100d", interval="1d")
-        df_vix = yf.Ticker("^VIX").history(period="100d", interval="1d")
+        # Aumentamos a 150d porque el OBV necesita un poco más de historial para ser preciso
+        df_ticker = yf.Ticker(ticker).history(period="150d", interval="1d")
+        df_qqq = yf.Ticker("QQQ").history(period="150d", interval="1d")
+        df_vix = yf.Ticker("^VIX").history(period="150d", interval="1d")
         
         if df_ticker.empty or df_qqq.empty or df_vix.empty:
             return None
@@ -98,22 +109,16 @@ def predecir(df, ticker):
         return "CEREBRO NO ENTRENADO", 0.0, 0.0
         
     try:
-        # Cargar el nodo inteligente pre-entrenado
         modelo = joblib.load(ruta_modelo)
         datos_hoy = df.iloc[-1:]
         
-        # Extraer el precio para el orquestador
         precio_actual = datos_hoy['Close'].iloc[0]
         
-        # Ocultar el precio antes de pasarlo a la IA (ya que no se entrenó con él)
         X = datos_hoy.drop(columns=['Close'])
         
-        # Inferencia de alta precisión
         probabilidad = modelo.predict_proba(X)[0][1]
         fiabilidad = probabilidad * 100
         
-        # Traductor para el controlador principal
-        # Tu script 'ejecutar_analisis_dinamico' busca la cadena "ALTA CONFIANZA" para disparar.
         if fiabilidad >= 60.0:
             señal = "COMPRA ESTRICTA - ALTA CONFIANZA"
         else:

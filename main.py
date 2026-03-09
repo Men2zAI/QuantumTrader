@@ -1,121 +1,120 @@
 import brain
+import lstm_engine
+import nlp_engine
+import broker_api  # <--- EL PUENTE INSTITUCIONAL
 import notifier
 import logger_engine
-import validator
-import json
-import os
 import pandas as pd
 import report_generator
+from dotenv import load_dotenv
+
+load_dotenv()
 
 EMPRESAS = ["NVDA", "AAPL", "MSFT", "TSLA", "GOOGL", "AMZN", "META", "NFLX", 
             "AMD", "INTC", "PYPL", "ADBE", "CSCO", "PEP", "COST", "AVGO", 
             "QCOM", "TMUS", "TXN", "AMAT"]
 
-def ejecutar_analisis_dinamico():
-    print("🚀 INICIANDO PROTOCOLO DE ORQUESTACIÓN Y AUDITORÍA...")
-    
-    # 1. Auditoría: Revisar si los sensores tocaron Stop Loss o Take Profit
-    try:
-        validator.validar_predicciones()
-    except Exception as e:
-        print(f"⚠️ Aviso en Auditoría: {e}")
-    
-    # 2. Leer el capital disponible (Interés Compuesto)
-    try:
-        with open('wallet.json', 'r') as f:
-            saldo_actual = json.load(f)['saldo_total']
-    except FileNotFoundError:
-        print("⚠️ No se encontró wallet.json. Usando saldo base de $1000.00")
-        saldo_actual = 1000.00
-        
-    elegidos = []
-    if os.path.exists('elegidos.json'):
-        with open('elegidos.json', 'r') as f:
-            elegidos = json.load(f)
-    else:
-        elegidos = EMPRESAS
+RATIO_R_B = 2.0
+FRACCION_KELLY = 0.5
 
-    # NUEVO CANDADO ANTI-DUPLICADOS: Leer operaciones activas
-    acciones_abiertas = []
-    if os.path.exists('historial_decisiones.csv'):
-        df_hist = pd.read_csv('historial_decisiones.csv')
-        abiertas_df = df_hist[df_hist['resultado_real'] == 'PENDIENTE']
-        acciones_abiertas = abiertas_df['ticker'].tolist()
+def calcular_kelly(probabilidad_ia):
+    W = probabilidad_ia
+    kelly_pct = W - ((1 - W) / RATIO_R_B)
+    kelly_seguro = kelly_pct * FRACCION_KELLY
+    if kelly_seguro <= 0: return 0.0
+    return max(0.01, min(kelly_seguro, 0.15))
+
+def ejecutar_analisis_dinamico():
+    print("🚀 INICIANDO ORQUESTADOR V9 (FUSIÓN TRIPLE + EJECUCIÓN ALPACA)...")
+    
+    # 1. Leer saldo real del broker
+    saldo_actual = broker_api.obtener_poder_adquisitivo()
+    print(f"💰 Poder adquisitivo detectado: ${saldo_actual:.2f}")
+    
+    if saldo_actual < 100:
+        print("⚠️ Capital insuficiente para operar.")
+        return
+
+    # 2. Leer cartera real del broker
+    acciones_abiertas = broker_api.sincronizar_cartera()
+    print(f"📂 Cartera actual en broker: {acciones_abiertas}")
 
     candidatos = []
+    print("\n📡 Iniciando comité neuronal de triple núcleo...")
     
-    # 3. Escaneo Global
-    print("📡 Iniciando barrido de la red de sensores XGBoost...")
     for empresa in EMPRESAS:
-        # Si la empresa ya está operando, el sensor la ignora para no sobre-comprar
         if empresa in acciones_abiertas:
-            print(f"⏳ {empresa}: Omitida (Operación ya activa en el mercado).")
+            print(f"⏳ {empresa}: Omitida (Ya la tenemos en Alpaca).")
             continue
             
         try:
+            # Sensores
             df = brain.obtener_datos(empresa)
-            señal, precio, fiabilidad = brain.predecir(df, empresa)
+            _, precio, fiabilidad_xgb = brain.predecir(df, empresa)
+            prob_nlp = nlp_engine.analizar_sentimiento(empresa)
+            prob_lstm = lstm_engine.analizar_onda(empresa)
             
-            # 🛡️ FILTRO INSTITUCIONAL: Exigimos 60% mínimo para evitar ruido
-            if empresa in elegidos and "ALTA CONFIANZA" in señal and fiabilidad >= 60.0:
+            # Fusión
+            prob_xgb_decimal = fiabilidad_xgb / 100.0
+            prob_fusionada = (prob_xgb_decimal * 0.45) + (prob_lstm * 0.35) + (prob_nlp * 0.20)
+            fiabilidad_final = round(prob_fusionada * 100, 2)
+            
+            if prob_fusionada >= 0.60:
                 candidatos.append({
                     'ticker': empresa,
                     'precio': precio,
-                    'señal': señal,
-                    'fiabilidad': fiabilidad
+                    'señal': "COMPRA TRIPLE NÚCLEO",
+                    'fiabilidad': fiabilidad_final,
+                    'prob_decimal': prob_fusionada
                 })
-                print(f"✅ {empresa}: ¡SEÑAL DETECTADA! ({fiabilidad}%)")
+                print(f"✅ {empresa}: ¡FUSIÓN! (Final: {fiabilidad_final}%)")
             else:
-                print(f"   {empresa}: Descartada (Señal: {señal} - {fiabilidad}%)")
+                print(f"   {empresa}: Descartada (Fusión: {fiabilidad_final}%)")
                 
         except Exception as e:
-            print(f"⚠️ Error en sensor {empresa}: {e}")
+            print(f"⚠️ Error en comité para {empresa}: {e}")
 
-    # 4. SELECCIÓN TOP 5
     elite_picks = sorted(candidatos, key=lambda x: x['fiabilidad'], reverse=True)[:5]
     
-    # 5. GESTIÓN DE CAPITAL (INTERÉS COMPUESTO)
     if not elite_picks:
-        msg_proteccion = f"📡 *Escaneo:* No hay nuevas señales claras (>60%). Capital de ${saldo_actual:.2f} protegido. 🛡️"
+        msg_proteccion = f"📡 *Escaneo:* Cero señales >60%. Capital de ${saldo_actual:.2f} protegido en Alpaca. 🛡️"
         print(f"\n{msg_proteccion}")
         notifier.enviar_telegram(msg_proteccion)
     else:
-        print(f"\n🎯 Procesando {len(elite_picks)} operaciones aprobadas...")
+        print(f"\n🎯 DISPARANDO {len(elite_picks)} ORDENES AL BROKER...")
         for pick in elite_picks:
             fiab = pick['fiabilidad']
+            prob_dec = pick['prob_decimal']
+            ticker = pick['ticker']
+            precio = pick['precio']
             
-            # 🛡️ GESTIÓN DE RIESGO: Límite máximo del 10% por operación
-            if fiab >= 65.0:
-                monto = saldo_actual * 0.10
-                prefijo = "🚀 *ÉLITE CONVICCIÓN*"
-            elif fiab >= 62.0:
-                monto = saldo_actual * 0.05
-                prefijo = "🎯 *ÉLITE ESTÁNDAR*"
+            porcentaje_kelly = calcular_kelly(prob_dec)
+            monto = saldo_actual * porcentaje_kelly
+            
+            # 🚀 EJECUCIÓN DIRECTA EN WALL STREET
+            resultado_orden = broker_api.ejecutar_orden_mercado(ticker, monto, precio)
+            
+            if resultado_orden == "ORDEN_COMPLETADA":
+                prefijo = "⚡ *ORDEN EJECUTADA EN ALPACA*"
+                logger_engine.guardar_registro(ticker, precio, pick['señal'], fiab, monto)
             else:
-                monto = saldo_actual * 0.02
-                prefijo = "🔬 *ÉLITE EXPLORACIÓN*"
+                prefijo = "❌ *ERROR DE EJECUCIÓN*"
 
-            # Guardamos el registro con el monto calculado dinámicamente
-            logger_engine.guardar_registro(pick['ticker'], pick['precio'], pick['señal'], fiab, monto)
-
-            msg = (f"{prefijo}: {pick['ticker']}\n"
-                   f"📍 Precio: ${pick['precio']:.2f}\n"
-                   f"📊 Fiabilidad: {fiab}%\n"
-                   f"💰 Inversión: ${monto:.2f} ({(monto/saldo_actual)*100:.0f}%)")
+            msg = (f"{prefijo}\n"
+                   f"📊 Activo: {ticker}\n"
+                   f"🧠 Confianza IA: {fiab}%\n"
+                   f"💰 Inversión Asignada: ${monto:.2f}\n"
+                   f"⚖️ Riesgo Kelly: {(porcentaje_kelly*100):.2f}%")
             
             notifier.enviar_telegram(msg)
         
-        notifier.enviar_telegram(f"✅ Escaneo finalizado con {len(elite_picks)} nuevas señales dinámicas.")
-    
-    # Generar el reporte final de la cartera
     try:
         report_generator.generar_y_enviar_reporte()
-        print("📄 Reporte generado y enviado con éxito.")
     except Exception as e:
-        print(f"⚠️ Error generando reporte: {e}")
+        print(f"⚠️ Error en reporte: {e}")
         
     print("-" * 50)
-    print("🛑 PROTOCOLO FINALIZADO.")
+    print("🛑 PROTOCOLO V9 FINALIZADO.")
 
 if __name__ == "__main__":
     ejecutar_analisis_dinamico()

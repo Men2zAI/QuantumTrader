@@ -1,72 +1,79 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import os, requests, re, json
+import os
+from datetime import datetime
+import notifier
+import broker_api  # <--- INYECTAMOS EL BROKER AQUÍ
 
-def calcular_proyeccion_roi():
-    archivo = 'balance_history.csv'
-    if not os.path.exists(archivo): return "📈 Calculando tendencia..."
-    df = pd.read_csv(archivo)
-    if len(df) < 2: return "📈 Datos iniciales..."
-    
-    saldo_act = df['saldo'].iloc[-1]
-    roi_total = ((saldo_act - 1000) / 1000) * 100
-    promedio_dia = (saldo_act - 1000) / len(df)
-    
-    if promedio_dia <= 0: return f"📊 ROI: {roi_total:.2f}% | Tendencia lateral."
-    dias_duplicar = int((2000 - saldo_act) / promedio_dia)
-    return f"🚀 *ROI:* `{roi_total:.2f}%` | *Meta $2,000:* `{dias_duplicar} días` aprox."
-
-def generar_grafico_comparativo(df_resultados):
-    # Clasificamos las operaciones pasadas por el monto invertido
-    # $50 = Exploración, $100 = Estándar, $200 = Convicción
-    plt.figure(figsize=(10, 6))
-    
-    categorias = {50.0: 'Exploración', 100.0: 'Estándar', 200.0: 'Convicción'}
-    df_resultados['categoria'] = df_resultados['monto'].map(categorias)
-    
-    resumen = df_resultados.groupby('categoria')['ganancia_dolares'].sum()
-    
-    resumen.plot(kind='bar', color=['blue', 'orange', 'green'])
-    plt.title('Rendimiento por Estrategia de Inversión')
-    plt.ylabel('Ganancia Neta (USD)')
-    plt.savefig('comparativa_estrategias.png')
-    
 def generar_y_enviar_reporte():
-    df = pd.read_csv('historial_decisiones.csv')
-    df = df[df['resultado_real'].str.contains('✅|❌|🛑', na=False)].copy()
-    if df.empty: return
-
-    def extraer(row):
-        t = str(row['resultado_real'])
-        match = re.search(r'\$\s?(-?\d+\.?\d*)', t)
-        val = float(match.group(1)) if match else 0.0
-        color = 'green' if "✅" in t else ('orange' if "🛑" in t else 'red')
-        # Ganancia nominal basada en inversión de $100
-        match_p = re.search(r'\((-?\d+\.?\d*)\%', t)
-        p = float(match_p.group(1)) if match_p else 0.0
-        return pd.Series([100 * (p/100), color, t])
-
-    df[['ganancia', 'color', 'texto']] = df.apply(extraer, axis=1)
-    res = df.groupby('ticker').agg({'ganancia':'sum', 'color':'last', 'texto':'last'}).reset_index()
+    archivo_historial = 'historial_decisiones.csv'
+    archivo_balance = 'balance_history.csv'
     
-    plt.figure(figsize=(12, 6))
-    plt.bar(res['ticker'], res['ganancia'], color=res['color'])
-    plt.axhline(0, color='black', linewidth=0.8)
-    plt.title(f'Rendimiento por Activo')
-    plt.savefig('reporte_diario.png')
+    # 1. OBTENER EL SALDO REAL DIRECTAMENTE DE WALL STREET
+    try:
+        if broker_api.alpaca:
+            cuenta = broker_api.alpaca.get_account()
+            # Usamos portfolio_value (Efectivo + Valor de las acciones compradas)
+            saldo_total = float(cuenta.portfolio_value)
+        else:
+            saldo_total = 0.0
+    except Exception as e:
+        print(f"⚠️ Error conectando al broker para el reporte: {e}")
+        saldo_total = 0.0
 
-    with open('wallet.json', 'r') as f: saldo_total = json.load(f)['saldo_total']
+    # 2. Registrar el balance en el historial
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
     
-    msg = f"📊 *INFORME DE CARTERA VIRTUAL*\n\n"
-    for _, r in res.iterrows():
-        icon = "🟢" if "✅" in r['texto'] else ("🟠" if "🛑" in r['texto'] else "🔴")
-        msg += f"• {r['ticker']}: {icon} *${r['ganancia']:.2f}*\n"
+    if not os.path.exists(archivo_balance):
+        df_balance = pd.DataFrame(columns=['fecha', 'saldo'])
+    else:
+        df_balance = pd.read_csv(archivo_balance)
+        
+    nueva_fila = pd.DataFrame({'fecha': [fecha_hoy], 'saldo': [saldo_total]})
+    df_balance = pd.concat([df_balance, nueva_fila], ignore_index=True)
+    df_balance.to_csv(archivo_balance, index=False)
+
+    # 3. Analizar operaciones
+    operaciones_totales = 0
+    tasa_acierto = 0.0
     
-    msg += f"\n🏦 *SALDO TOTAL:* `${saldo_total:.2f} USD`"
-    msg += f"\n{calcular_proyeccion_roi()}"
+    if os.path.exists(archivo_historial):
+        df_hist = pd.read_csv(archivo_historial)
+        cerradas = df_hist[~df_hist['resultado_real'].isin(['PENDIENTE', '⚪ NO OPERADO'])]
+        operaciones_totales = len(cerradas)
+        
+        if operaciones_totales > 0:
+            ganadoras = cerradas[cerradas['resultado_real'].str.contains("TAKE PROFIT|LIQUIDACIÓN|TRAILING STOP", na=False)]
+            tasa_acierto = (len(ganadoras) / operaciones_totales) * 100
 
-    url = f"https://api.telegram.org/bot{os.getenv('TELEGRAM_TOKEN')}/sendPhoto"
-    with open('reporte_diario.png', 'rb') as f:
-        requests.post(url, data={'chat_id': os.getenv('TELEGRAM_CHAT_ID'), 'caption': msg, 'parse_mode': 'Markdown'}, files={'photo': f})
+    # 4. Crear el gráfico de crecimiento
+    plt.figure(figsize=(10, 5))
+    plt.plot(df_balance['fecha'], df_balance['saldo'], marker='o', color='#00ffcc', linewidth=2)
+    plt.title('Rendimiento del Fondo Cuantitativo V9 (Alpaca API)', color='white')
+    plt.xlabel('Fecha', color='lightgray')
+    plt.ylabel('Capital (USD)', color='lightgray')
+    plt.grid(True, linestyle='--', alpha=0.3)
+    
+    ax = plt.gca()
+    ax.set_facecolor('#1e1e1e')
+    plt.gcf().set_facecolor('#121212')
+    ax.tick_params(colors='white')
+    for spine in ax.spines.values():
+        spine.set_color('#333333')
+        
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    
+    ruta_imagen = 'reporte_diario.png'
+    plt.savefig(ruta_imagen, dpi=300, facecolor='#121212')
+    plt.close()
 
-if __name__ == "__main__": generar_y_enviar_reporte()
+    # 5. Enviar el reporte a Telegram
+    mensaje_reporte = (
+        f"📊 *REPORTE INSTITUCIONAL V9*\n"
+        f"💰 Equidad Total (Alpaca): ${saldo_total:.2f}\n"
+        f"📈 Win Rate Histórico: {tasa_acierto:.2f}%\n"
+        f"🔄 Operaciones Cerradas: {operaciones_totales}"
+    )
+    
+    notifier.enviar_imagen_telegram(ruta_imagen, mensaje_reporte)
