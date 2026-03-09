@@ -1,5 +1,6 @@
 name: QuantumTrader AI Bot V9
-
+# 2. Librerías Core y API Broker (Añadido python-dotenv)
+pip install pandas requests matplotlib scikit-learn xgboost joblib alpaca-trade-api python-dotenv
 on:
   schedule:
     # Se ejecuta a las 15:45 hasta las 22:45 hora de Italia (Mercado de NY abierto)
