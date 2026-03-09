@@ -1,11 +1,10 @@
 name: QuantumTrader AI Bot V9
-# 2. Librerías Core y API Broker (Añadido python-dotenv)
-pip install pandas requests matplotlib scikit-learn xgboost joblib alpaca-trade-api python-dotenv
+
 on:
   schedule:
     # Se ejecuta a las 15:45 hasta las 22:45 hora de Italia (Mercado de NY abierto)
     - cron: '45 14-21 * * 1-5'
-  workflow_dispatch:
+  workflow_dispatch: # Permite ejecutarlo manualmente con el botón en GitHub
 
 jobs:
   run-bot:
@@ -19,17 +18,17 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-        # CACHÉ ELIMINADA: El servidor ya no recordará errores pasados
+        # Sin caché para evitar la guerra de dependencias
 
     - name: Instalar Infraestructura Cuantitativa
       run: |
         python -m pip install --upgrade pip
         
-        # 1. El Tratado de Paz: Congelar yfinance en una versión estable
+        # 1. Congelar yfinance para proteger WebSockets
         pip install yfinance==0.2.31
         
-        # 2. Librerías Core y API Broker (Alpaca instalará su websocket compatible)
-        pip install pandas requests matplotlib scikit-learn xgboost joblib alpaca-trade-api
+        # 2. Librerías Core, API Broker y Variables de Entorno
+        pip install pandas requests matplotlib scikit-learn xgboost joblib alpaca-trade-api python-dotenv
         
         # 3. Deep Learning (TensorFlow CPU)
         pip install tensorflow-cpu
@@ -37,7 +36,7 @@ jobs:
         # 4. Procesamiento de Lenguaje (Torch CPU y Transformers)
         pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
         pip install transformers
-        
+
     - name: Ejecutar Orquestador V9
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
@@ -47,11 +46,10 @@ jobs:
         ALPACA_BASE_URL: https://paper-api.alpaca.markets
       run: python main.py
 
-    - name: Sincronizar y guardar resultados
+    - name: Sincronizar y guardar resultados en GitHub
       run: |
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        # Eliminamos wallet.json del rastreo porque ya usamos Alpaca
         git add historial_decisiones.csv reporte_diario.png balance_history.csv
         git diff --quiet && git diff --staged --quiet || git commit -m "🤖 Actualización V9: Barrido de IA y Operaciones Alpaca"
         git push origin main
