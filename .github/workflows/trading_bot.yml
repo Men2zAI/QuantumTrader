@@ -18,21 +18,27 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-        cache: 'pip' # Acelera las ejecuciones futuras guardando las librerías
+        # CACHÉ ELIMINADA: El servidor ya no recordará errores pasados
 
     - name: Instalar Infraestructura Cuantitativa
       run: |
         python -m pip install --upgrade pip
-        # 1. Forzar limpieza de caché y versiones máximas para el motor de red
-        pip install --upgrade yfinance "websockets>=11.0"
-        # 2. Librerías Core
-        pip install pandas requests matplotlib scikit-learn xgboost joblib alpaca-trade-api
-        # 3. Deep Learning (TensorFlow CPU)
-        pip install tensorflow-cpu
-        # 4. Procesamiento de Lenguaje (Torch CPU y Transformers)
-        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-        pip install transformers
-
+        
+        # 1. Destruir versiones preinstaladas corruptas del servidor Ubuntu
+        pip uninstall -y websockets yfinance
+        
+        # 2. Instalación limpia y sin memoria caché (El bypass definitivo)
+        pip install --no-cache-dir yfinance "websockets>=11.0"
+        
+        # 3. Librerías Core y API Broker
+        pip install --no-cache-dir pandas requests matplotlib scikit-learn xgboost joblib alpaca-trade-api
+        
+        # 4. Deep Learning (TensorFlow CPU)
+        pip install --no-cache-dir tensorflow-cpu
+        
+        # 5. Procesamiento de Lenguaje (Torch CPU y Transformers)
+        pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        pip install --no-cache-dir transformers
     - name: Ejecutar Orquestador V9
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
