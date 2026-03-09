@@ -24,21 +24,19 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         
-        # 1. Destruir versiones preinstaladas corruptas del servidor Ubuntu
-        pip uninstall -y websockets yfinance
+        # 1. El Tratado de Paz: Congelar yfinance en una versión estable
+        pip install yfinance==0.2.31
         
-        # 2. Instalación limpia y sin memoria caché (El bypass definitivo)
-        pip install --no-cache-dir yfinance "websockets>=11.0"
+        # 2. Librerías Core y API Broker (Alpaca instalará su websocket compatible)
+        pip install pandas requests matplotlib scikit-learn xgboost joblib alpaca-trade-api
         
-        # 3. Librerías Core y API Broker
-        pip install --no-cache-dir pandas requests matplotlib scikit-learn xgboost joblib alpaca-trade-api
+        # 3. Deep Learning (TensorFlow CPU)
+        pip install tensorflow-cpu
         
-        # 4. Deep Learning (TensorFlow CPU)
-        pip install --no-cache-dir tensorflow-cpu
+        # 4. Procesamiento de Lenguaje (Torch CPU y Transformers)
+        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+        pip install transformers
         
-        # 5. Procesamiento de Lenguaje (Torch CPU y Transformers)
-        pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-        pip install --no-cache-dir transformers
     - name: Ejecutar Orquestador V9
       env:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
