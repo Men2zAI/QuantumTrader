@@ -12,12 +12,21 @@ EMPRESAS = ["NVDA", "AAPL", "MSFT", "TSLA", "GOOGL", "AMZN", "META", "NFLX",
             "QCOM", "TMUS", "TXN", "AMAT"]
 
 def ejecutar_analisis_dinamico():
+    print("🚀 INICIANDO PROTOCOLO DE ORQUESTACIÓN Y AUDITORÍA...")
+    
     # 1. Auditoría: Revisar si los sensores tocaron Stop Loss o Take Profit
-    validator.validar_predicciones()
+    try:
+        validator.validar_predicciones()
+    except Exception as e:
+        print(f"⚠️ Aviso en Auditoría: {e}")
     
     # 2. Leer el capital disponible (Interés Compuesto)
-    with open('wallet.json', 'r') as f:
-        saldo_actual = json.load(f)['saldo_total']
+    try:
+        with open('wallet.json', 'r') as f:
+            saldo_actual = json.load(f)['saldo_total']
+    except FileNotFoundError:
+        print("⚠️ No se encontró wallet.json. Usando saldo base de $1000.00")
+        saldo_actual = 1000.00
         
     elegidos = []
     if os.path.exists('elegidos.json'):
@@ -36,23 +45,29 @@ def ejecutar_analisis_dinamico():
     candidatos = []
     
     # 3. Escaneo Global
+    print("📡 Iniciando barrido de la red de sensores XGBoost...")
     for empresa in EMPRESAS:
         # Si la empresa ya está operando, el sensor la ignora para no sobre-comprar
         if empresa in acciones_abiertas:
+            print(f"⏳ {empresa}: Omitida (Operación ya activa en el mercado).")
             continue
             
         try:
             df = brain.obtener_datos(empresa)
             señal, precio, fiabilidad = brain.predecir(df, empresa)
             
-            # Filtro base (>52%)
-            if empresa in elegidos and "ALTA CONFIANZA" in señal and fiabilidad >= 52.0:
+            # 🛡️ FILTRO INSTITUCIONAL: Exigimos 60% mínimo para evitar ruido
+            if empresa in elegidos and "ALTA CONFIANZA" in señal and fiabilidad >= 60.0:
                 candidatos.append({
                     'ticker': empresa,
                     'precio': precio,
                     'señal': señal,
                     'fiabilidad': fiabilidad
                 })
+                print(f"✅ {empresa}: ¡SEÑAL DETECTADA! ({fiabilidad}%)")
+            else:
+                print(f"   {empresa}: Descartada (Señal: {señal} - {fiabilidad}%)")
+                
         except Exception as e:
             print(f"⚠️ Error en sensor {empresa}: {e}")
 
@@ -61,20 +76,23 @@ def ejecutar_analisis_dinamico():
     
     # 5. GESTIÓN DE CAPITAL (INTERÉS COMPUESTO)
     if not elite_picks:
-        notifier.enviar_telegram(f"📡 *Escaneo:* No hay nuevas señales claras (>52%). Capital de ${saldo_actual:.2f} protegido. 🛡️")
+        msg_proteccion = f"📡 *Escaneo:* No hay nuevas señales claras (>60%). Capital de ${saldo_actual:.2f} protegido. 🛡️"
+        print(f"\n{msg_proteccion}")
+        notifier.enviar_telegram(msg_proteccion)
     else:
+        print(f"\n🎯 Procesando {len(elite_picks)} operaciones aprobadas...")
         for pick in elite_picks:
             fiab = pick['fiabilidad']
             
-            # Cálculo de inversión por porcentajes del saldo total
-            if fiab >= 60.0:
-                monto = saldo_actual * 0.20
-                prefijo = "🚀 *ÉLITE CONVICCIÓN*"
-            elif fiab >= 55.0:
+            # 🛡️ GESTIÓN DE RIESGO: Límite máximo del 10% por operación
+            if fiab >= 65.0:
                 monto = saldo_actual * 0.10
+                prefijo = "🚀 *ÉLITE CONVICCIÓN*"
+            elif fiab >= 62.0:
+                monto = saldo_actual * 0.05
                 prefijo = "🎯 *ÉLITE ESTÁNDAR*"
             else:
-                monto = saldo_actual * 0.05
+                monto = saldo_actual * 0.02
                 prefijo = "🔬 *ÉLITE EXPLORACIÓN*"
 
             # Guardamos el registro con el monto calculado dinámicamente
@@ -89,7 +107,15 @@ def ejecutar_analisis_dinamico():
         
         notifier.enviar_telegram(f"✅ Escaneo finalizado con {len(elite_picks)} nuevas señales dinámicas.")
     
-    report_generator.generar_y_enviar_reporte()
-    
+    # Generar el reporte final de la cartera
+    try:
+        report_generator.generar_y_enviar_reporte()
+        print("📄 Reporte generado y enviado con éxito.")
+    except Exception as e:
+        print(f"⚠️ Error generando reporte: {e}")
+        
+    print("-" * 50)
+    print("🛑 PROTOCOLO FINALIZADO.")
+
 if __name__ == "__main__":
     ejecutar_analisis_dinamico()

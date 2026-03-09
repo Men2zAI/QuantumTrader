@@ -5,13 +5,12 @@ import joblib
 import os
 import warnings
 
-# Mantenemos la terminal limpia para el reporte final
 warnings.filterwarnings('ignore')
 
 def crear_features_produccion(df, tipo="ticker"):
     """
-    Motor de Inferencia: Calcula la red de sensores EXACTAMENTE igual que 
-    el entrenamiento, pero SIN intentar predecir el Target futuro.
+    Motor de Extracción: Transforma los datos crudos en la matriz de sensores
+    exacta que el modelo XGBoost espera recibir.
     """
     df['Retorno'] = df['Close'].pct_change()
     
@@ -52,73 +51,76 @@ def crear_features_produccion(df, tipo="ticker"):
         ranges = pd.concat([high_low, high_close, low_close], axis=1)
         df['ATR'] = ranges.max(axis=1).rolling(14).mean()
 
-        # Solo enviamos las variables matemáticas, sin el 'Target'
-        features_ticker = ['Retorno', 'RSI', 'MACD_Hist', 'Distancia_BB_Inf', 'ATR', 'SMA_20', 'SMA_50']
+        # Retenemos 'Close' temporalmente para que el orquestador pueda leer el precio de compra
+        features_ticker = ['Close', 'Retorno', 'RSI', 'MACD_Hist', 'Distancia_BB_Inf', 'ATR', 'SMA_20', 'SMA_50']
         return df[features_ticker]
 
-def escanear_mercado_en_vivo(ticker, umbral_confianza=0.65):
+def obtener_datos(ticker):
+    """
+    Multiplexor: Descarga y sincroniza la red de sensores (Micro + Macro + Miedo)
+    para alimentar al orquestador principal.
+    """
+    try:
+        df_ticker = yf.Ticker(ticker).history(period="100d", interval="1d")
+        df_qqq = yf.Ticker("QQQ").history(period="100d", interval="1d")
+        df_vix = yf.Ticker("^VIX").history(period="100d", interval="1d")
+        
+        if df_ticker.empty or df_qqq.empty or df_vix.empty:
+            return None
+            
+        # Sincronización estricta de relojes
+        df_ticker.index = pd.to_datetime(df_ticker.index).tz_localize(None).normalize()
+        df_qqq.index = pd.to_datetime(df_qqq.index).tz_localize(None).normalize()
+        df_vix.index = pd.to_datetime(df_vix.index).tz_localize(None).normalize()
+        
+        feat_ticker = crear_features_produccion(df_ticker, tipo="ticker")
+        feat_qqq = crear_features_produccion(df_qqq, tipo="qqq")
+        feat_vix = crear_features_produccion(df_vix, tipo="vix")
+        
+        df_unido = feat_ticker.join(feat_qqq, how='inner').join(feat_vix, how='inner').dropna()
+        df_unido = df_unido.sort_index()
+        
+        return df_unido if not df_unido.empty else None
+    except Exception as e:
+        print(f"⚠️ Error sincronizando sensores para {ticker}: {e}")
+        return None
+
+def predecir(df, ticker):
+    """
+    Procesador Digital: Carga el archivo .pkl, ejecuta la inferencia y 
+    devuelve la estructura exacta que el orquestador espera (señal, precio, fiabilidad).
+    """
+    if df is None or df.empty:
+        return "ERROR DE RED", 0.0, 0.0
+        
     ruta_modelo = f"modelos/modelo_{ticker}.pkl"
     if not os.path.exists(ruta_modelo):
-        print(f"❌ ERROR: Cerebro no encontrado para {ticker}. Entrénalo primero.")
-        return
-
-    # 1. DESPERTAR A LA IA
-    modelo = joblib.load(ruta_modelo)
-    
-    # 2. DESCARGAR SENSORES (Solo 100 días para ultra velocidad)
-    df_ticker = yf.Ticker(ticker).history(period="100d", interval="1d")
-    df_qqq = yf.Ticker("QQQ").history(period="100d", interval="1d")
-    df_vix = yf.Ticker("^VIX").history(period="100d", interval="1d")
-    
-    if df_ticker.empty or df_qqq.empty or df_vix.empty:
-        return
-    
-    # Sincronización de relojes para cruzar datos sin error
-    df_ticker.index = pd.to_datetime(df_ticker.index).tz_localize(None).normalize()
-    df_qqq.index = pd.to_datetime(df_qqq.index).tz_localize(None).normalize()
-    df_vix.index = pd.to_datetime(df_vix.index).tz_localize(None).normalize()
-    
-    feat_ticker = crear_features_produccion(df_ticker, tipo="ticker")
-    feat_qqq = crear_features_produccion(df_qqq, tipo="qqq")
-    feat_vix = crear_features_produccion(df_vix, tipo="vix")
-    
-    df_unido = feat_ticker.join(feat_qqq, how='inner').join(feat_vix, how='inner').dropna()
-    df_unido = df_unido.sort_index()
-    
-    if df_unido.empty:
-        return
+        return "CEREBRO NO ENTRENADO", 0.0, 0.0
         
-    # 3. EXTRAER LA "FOTO" DEL MILISEGUNDO ACTUAL
-    datos_hoy = df_unido.iloc[-1:]
-    
-    # 4. EL ORÁCULO TOMA LA DECISIÓN
-    probabilidad = modelo.predict_proba(datos_hoy)[0][1]
-    
-    # 5. GESTIÓN DE RIESGO INTELIGENTE
-    precio_actual = df_ticker['Close'].iloc[-1]
-    atr_actual = datos_hoy['ATR'].iloc[-1]
-    
-    # Tu estrategia exacta: Take Profit Dinámico (1.5x ATR) y Stop Loss Estricto (-2%)
-    take_profit_usd = precio_actual + (atr_actual * 1.5)
-    stop_loss_usd = precio_actual - (precio_actual * 0.02) 
-    
-    print("-" * 50)
-    print(f"🔬 ÉLITE EXPLORACIÓN: {ticker}")
-    print(f"📍 Precio Actual: ${precio_actual:.2f}")
-    print(f"📊 Confianza de la IA: {probabilidad * 100:.2f}%")
-    
-    if probabilidad >= umbral_confianza:
-        print(f"✅ ¡SEÑAL DE COMPRA DISPARADA!")
-        print(f"🎯 Take Profit: ${take_profit_usd:.2f} | 🛡️ Stop Loss: ${stop_loss_usd:.2f}")
-        # Aquí es donde en el futuro conectarás el código para tu Broker.
-    else:
-        print(f"⏳ Señal descartada (Requiere {umbral_confianza*100}%)")
-
-if __name__ == "__main__":
-    print("🚀 INICIANDO PROTOCOLO DE CONEXIÓN CEREBRAL...")
-    mi_cartera = ["MSFT", "PYPL", "NVDA"]
-    
-    for empresa in mi_cartera:
-        # Ejecutamos el escáner exigiendo nuestro muro del 65% a NVIDIA y Microsoft.
-        escanear_mercado_en_vivo(empresa, umbral_confianza=0.65)
-    print("-" * 50)
+    try:
+        # Cargar el nodo inteligente pre-entrenado
+        modelo = joblib.load(ruta_modelo)
+        datos_hoy = df.iloc[-1:]
+        
+        # Extraer el precio para el orquestador
+        precio_actual = datos_hoy['Close'].iloc[0]
+        
+        # Ocultar el precio antes de pasarlo a la IA (ya que no se entrenó con él)
+        X = datos_hoy.drop(columns=['Close'])
+        
+        # Inferencia de alta precisión
+        probabilidad = modelo.predict_proba(X)[0][1]
+        fiabilidad = probabilidad * 100
+        
+        # Traductor para el controlador principal
+        # Tu script 'ejecutar_analisis_dinamico' busca la cadena "ALTA CONFIANZA" para disparar.
+        if fiabilidad >= 60.0:
+            señal = "COMPRA ESTRICTA - ALTA CONFIANZA"
+        else:
+            señal = "RUIDO DESCARTADO"
+            
+        return señal, precio_actual, round(fiabilidad, 2)
+        
+    except Exception as e:
+        print(f"⚠️ Error en inferencia para {ticker}: {e}")
+        return "ERROR DE PROCESAMIENTO", 0.0, 0.0
