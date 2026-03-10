@@ -1,0 +1,32 @@
+name: Nodo Beta Cripto (CCXT)
+
+on:
+  schedule:
+    # Se ejecuta en el minuto 0 de cada hora, todos los días del año (24/7)
+    - cron: '0 * * * *'
+  workflow_dispatch: # Permite ejecución manual
+
+jobs:
+  run-crypto-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout del repositorio
+      uses: actions/checkout@v3
+
+    - name: Configurar Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Instalar Dependencias Cripto
+      run: |
+        python -m pip install --upgrade pip
+        # Instalamos solo el ecosistema ligero para Cripto
+        pip install ccxt pandas xgboost scikit-learn python-dotenv joblib requests numpy
+
+    - name: Ejecutar Orquestador Cripto
+      env:
+        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: python crypto_bot.py
