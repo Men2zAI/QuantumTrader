@@ -1,7 +1,8 @@
 import brain
 import lstm_engine
 import nlp_engine
-import broker_api  # <--- EL PUENTE INSTITUCIONAL
+import options_engine  # <--- EL CUARTO SENSOR INSTITUCIONAL
+import broker_api
 import notifier
 import logger_engine
 import pandas as pd
@@ -25,9 +26,8 @@ def calcular_kelly(probabilidad_ia):
     return max(0.01, min(kelly_seguro, 0.15))
 
 def ejecutar_analisis_dinamico():
-    print("🚀 INICIANDO ORQUESTADOR V9 (FUSIÓN TRIPLE + EJECUCIÓN ALPACA)...")
+    print("🚀 INICIANDO ORQUESTADOR V10 (FUSIÓN CUÁDRUPLE + ALPACA)...")
     
-    # 1. Leer saldo real del broker
     saldo_actual = broker_api.obtener_poder_adquisitivo()
     print(f"💰 Poder adquisitivo detectado: ${saldo_actual:.2f}")
     
@@ -35,39 +35,39 @@ def ejecutar_analisis_dinamico():
         print("⚠️ Capital insuficiente para operar.")
         return
 
-    # 2. Leer cartera real del broker
     acciones_abiertas = broker_api.sincronizar_cartera()
     print(f"📂 Cartera actual en broker: {acciones_abiertas}")
 
     candidatos = []
-    print("\n📡 Iniciando comité neuronal de triple núcleo...")
+    print("\n📡 Iniciando comité neuronal de cuádruple núcleo...")
     
     for empresa in EMPRESAS:
         if empresa in acciones_abiertas:
-            print(f"⏳ {empresa}: Omitida (Ya la tenemos en Alpaca).")
+            print(f"⏳ {empresa}: Omitida (Ya en cartera).")
             continue
             
         try:
-            # Sensores
+            # 🔌 LOS 4 SENSORES DE TELEMETRÍA
             df = brain.obtener_datos(empresa)
             _, precio, fiabilidad_xgb = brain.predecir(df, empresa)
             prob_nlp = nlp_engine.analizar_sentimiento(empresa)
             prob_lstm = lstm_engine.analizar_onda(empresa)
+            prob_opciones = options_engine.analizar_opciones(empresa)
             
-            # Fusión
+            # 🧠 META-APRENDIZ: Fusión Matemática en 4 Dimensiones
             prob_xgb_decimal = fiabilidad_xgb / 100.0
-            prob_fusionada = (prob_xgb_decimal * 0.45) + (prob_lstm * 0.35) + (prob_nlp * 0.20)
+            prob_fusionada = (prob_xgb_decimal * 0.35) + (prob_lstm * 0.30) + (prob_opciones * 0.20) + (prob_nlp * 0.15)
             fiabilidad_final = round(prob_fusionada * 100, 2)
             
             if prob_fusionada >= 0.60:
                 candidatos.append({
                     'ticker': empresa,
                     'precio': precio,
-                    'señal': "COMPRA TRIPLE NÚCLEO",
+                    'señal': "COMPRA CUÁDRUPLE",
                     'fiabilidad': fiabilidad_final,
                     'prob_decimal': prob_fusionada
                 })
-                print(f"✅ {empresa}: ¡FUSIÓN! (Final: {fiabilidad_final}%)")
+                print(f"✅ {empresa}: ¡FUSIÓN V10! (Final: {fiabilidad_final}%)")
             else:
                 print(f"   {empresa}: Descartada (Fusión: {fiabilidad_final}%)")
                 
@@ -77,7 +77,7 @@ def ejecutar_analisis_dinamico():
     elite_picks = sorted(candidatos, key=lambda x: x['fiabilidad'], reverse=True)[:5]
     
     if not elite_picks:
-        msg_proteccion = f"📡 *Escaneo:* Cero señales >60%. Capital de ${saldo_actual:.2f} protegido en Alpaca. 🛡️"
+        msg_proteccion = f"📡 *Escaneo V10:* Cero señales >60%. Capital de ${saldo_actual:.2f} protegido. 🛡️"
         print(f"\n{msg_proteccion}")
         notifier.enviar_telegram(msg_proteccion)
     else:
@@ -91,7 +91,6 @@ def ejecutar_analisis_dinamico():
             porcentaje_kelly = calcular_kelly(prob_dec)
             monto = saldo_actual * porcentaje_kelly
             
-            # 🚀 EJECUCIÓN DIRECTA EN WALL STREET
             resultado_orden = broker_api.ejecutar_orden_mercado(ticker, monto, precio)
             
             if resultado_orden == "ORDEN_COMPLETADA":
@@ -102,7 +101,7 @@ def ejecutar_analisis_dinamico():
 
             msg = (f"{prefijo}\n"
                    f"📊 Activo: {ticker}\n"
-                   f"🧠 Confianza IA: {fiab}%\n"
+                   f"🧠 Confianza Cuádruple: {fiab}%\n"
                    f"💰 Inversión Asignada: ${monto:.2f}\n"
                    f"⚖️ Riesgo Kelly: {(porcentaje_kelly*100):.2f}%")
             
@@ -114,7 +113,7 @@ def ejecutar_analisis_dinamico():
         print(f"⚠️ Error en reporte: {e}")
         
     print("-" * 50)
-    print("🛑 PROTOCOLO V9 FINALIZADO.")
+    print("🛑 PROTOCOLO V10 FINALIZADO.")
 
 if __name__ == "__main__":
     ejecutar_analisis_dinamico()
