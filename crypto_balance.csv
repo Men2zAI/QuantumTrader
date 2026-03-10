@@ -1,2 +1,3 @@
 timestamp,balance_usdt,activo,operacion,precio_ejecucion
 2026-03-10 11:30:00,10000.0,CASH,START,0.0
+2026-03-10 11:54:41,10000.0,BTC,SELL_OR_WAIT,70664.3
