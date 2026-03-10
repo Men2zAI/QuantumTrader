@@ -30,3 +30,14 @@ jobs:
         TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: python crypto_bot.py
+
+    - name: Persistir Balance (Memoria Financiera)
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        # Añadimos el archivo de balance si hubo cambios
+        git add crypto_balance.csv
+        # Solo hacemos commit si el archivo realmente cambió para evitar errores
+        git diff --quiet && git diff --staged --quiet || (git commit -m "📊 Nodo Beta: Actualización de balance virtual [skip ci]" && git push)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  
