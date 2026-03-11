@@ -77,7 +77,7 @@ def ejecutar_analisis_dinamico():
     elite_picks = sorted(candidatos, key=lambda x: x['fiabilidad'], reverse=True)[:5]
     
     if not elite_picks:
-        msg_proteccion = f"📡 *Escaneo V10:* Cero señales >60%. Capital de ${saldo_actual:.2f} protegido. 🛡️"
+        msg_proteccion = f"📡 *Escaneo V10:* Cero señales >54%. Capital de ${saldo_actual:.2f} protegido. 🛡️"
         print(f"\n{msg_proteccion}")
         notifier.enviar_telegram(msg_proteccion)
     else:
