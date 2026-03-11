@@ -13,7 +13,7 @@ load_dotenv()
 
 EMPRESAS = ["NVDA", "AAPL", "MSFT", "TSLA", "GOOGL", "AMZN", "META", "NFLX", 
             "AMD", "INTC", "PYPL", "ADBE", "CSCO", "PEP", "COST", "AVGO", 
-            "QCOM", "TMUS", "TXN", "AMAT"]
+            "QCOM", "TMUS", "TXN", "AMAT", "PLTR", "COIN", "ARM"]
 
 RATIO_R_B = 2.0
 FRACCION_KELLY = 0.5
