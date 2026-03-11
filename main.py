@@ -59,7 +59,7 @@ def ejecutar_analisis_dinamico():
             prob_fusionada = (prob_xgb_decimal * 0.35) + (prob_lstm * 0.30) + (prob_opciones * 0.20) + (prob_nlp * 0.15)
             fiabilidad_final = round(prob_fusionada * 100, 2)
             
-            if prob_fusionada >= 0.60:
+            if prob_fusionada >= 0.54:
                 candidatos.append({
                     'ticker': empresa,
                     'precio': precio,
