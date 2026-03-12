@@ -6,34 +6,34 @@ import alpaca_trade_api as tradeapi
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 
-# Inicialización de la Troncal Alpaca
 load_dotenv()
-API_KEY = os.getenv('ALPACA_API_KEY')
-SECRET_KEY = os.getenv('ALPACA_SECRET_KEY')
-BASE_URL = 'https://paper-api.alpaca.markets'
-alpaca = tradeapi.REST(API_KEY, SECRET_KEY, BASE_URL, api_version='v2')
+alpaca = tradeapi.REST(
+    os.getenv('ALPACA_API_KEY'), 
+    os.getenv('ALPACA_SECRET_KEY'), 
+    'https://paper-api.alpaca.markets', 
+    api_version='v2'
+)
 
 def obtener_datos(ticker):
     try:
-        fin = datetime.now()
-        inicio = fin - timedelta(days=220) # Margen amplio para obtener ~150 días hábiles
+        fin = datetime.now() - timedelta(minutes=16) # Evitamos el muro de pago de los últimos 15 min
+        inicio = fin - timedelta(days=220) 
         
-        # Extracción Institucional
+        # Usamos feed="iex" para el plan gratuito
         barras = alpaca.get_bars(
             ticker, 
             tradeapi.rest.TimeFrame.Day, 
             start=inicio.strftime('%Y-%m-%d'), 
-            end=fin.strftime('%Y-%m-%d')
+            end=fin.strftime('%Y-%m-%d'),
+            feed='iex'
         ).df
         
         if barras.empty:
             raise ValueError(f"Sin datos en Alpaca para {ticker}")
             
-        # Homologación de columnas para compatibilidad
         barras.rename(columns={'close': 'Close', 'volume': 'Volume'}, inplace=True)
         df = barras[['Close', 'Volume']].copy()
         
-        # Ingeniería de Características
         df['Retorno'] = df['Close'].pct_change()
         df['Volatilidad'] = df['Close'].rolling(window=14).std()
         df['Media_Movil'] = df['Close'].rolling(window=14).mean()

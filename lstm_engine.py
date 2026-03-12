@@ -18,20 +18,20 @@ alpaca = tradeapi.REST(
 
 def analizar_onda(ticker):
     try:
-        fin = datetime.now()
+        fin = datetime.now() - timedelta(minutes=16) # Bypass SIP
         inicio = fin - timedelta(days=150)
         
         barras = alpaca.get_bars(
             ticker, 
             tradeapi.rest.TimeFrame.Day, 
             start=inicio.strftime('%Y-%m-%d'), 
-            end=fin.strftime('%Y-%m-%d')
+            end=fin.strftime('%Y-%m-%d'),
+            feed='iex'
         ).df
         
         if barras.empty or len(barras) < 60:
             return 0.50 
 
-        # Extraemos solo el cierre
         data = barras['close'].values.reshape(-1, 1)
         scaler = MinMaxScaler(feature_range=(0, 1))
         scaled_data = scaler.fit_transform(data)
@@ -45,7 +45,6 @@ def analizar_onda(ticker):
         X, y = np.array(X), np.array(y)
         X = np.reshape(X, (X.shape[0], X.shape[1], 1))
 
-        # Red LSTM Ligera
         model = Sequential()
         model.add(LSTM(20, return_sequences=False, input_shape=(X.shape[1], 1)))
         model.add(Dense(1))

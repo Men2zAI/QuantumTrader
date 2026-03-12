@@ -13,25 +13,21 @@ alpaca = tradeapi.REST(
 )
 
 def analizar_opciones(ticker):
-    """
-    Motor refactorizado: Analiza Flujo Institucional y Volatilidad 
-    (Proxy matemático para el mercado de opciones).
-    """
     try:
-        fin = datetime.now()
-        inicio = fin - timedelta(days=30) # Solo necesitamos el último mes
+        fin = datetime.now() - timedelta(minutes=16) # Bypass SIP
+        inicio = fin - timedelta(days=30) 
         
         barras = alpaca.get_bars(
             ticker, 
             tradeapi.rest.TimeFrame.Day, 
             start=inicio.strftime('%Y-%m-%d'), 
-            end=fin.strftime('%Y-%m-%d')
+            end=fin.strftime('%Y-%m-%d'),
+            feed='iex'
         ).df
         
         if barras.empty or len(barras) < 10:
             return 0.50
             
-        # Análisis de Flujo Reciente (Últimos 3 días)
         volumen_promedio = barras['volume'].mean()
         volumen_reciente = barras['volume'].iloc[-3:].mean()
         
@@ -40,16 +36,12 @@ def analizar_opciones(ticker):
         
         ratio_volumen = volumen_reciente / volumen_promedio
         
-        # Lógica de Mercado Institucional:
-        # Alto volumen + Precio subiendo = Compras agresivas (Equivalente a Call Sweep)
-        # Alto volumen + Precio bajando = Distribución / Pánico (Equivalente a Put Sweep)
-        
         if ratio_volumen > 1.3 and precio_actual > precio_promedio:
-            probabilidad = 0.70 # Momentum alcista fuerte
+            probabilidad = 0.70 
         elif ratio_volumen > 1.3 and precio_actual < precio_promedio:
-            probabilidad = 0.30 # Momentum bajista fuerte
+            probabilidad = 0.30 
         else:
-            probabilidad = 0.50 # Mercado lateral o sin interés
+            probabilidad = 0.50 
             
         return probabilidad
 
