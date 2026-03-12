@@ -28,3 +28,9 @@ def enviar_telegram(mensaje):
             print(f"⚠️ Telegram respondió con error: {response.text}")
     except Exception as e:
         print(f"❌ Fallo en la conexión de red con Telegram: {e}")
+        
+def enviar_imagen_telegram(ruta_imagen, mensaje=""):
+    # Por ahora, solo enviamos el texto para evitar que el bot se estrelle
+    # En el futuro aquí pondremos el código real para enviar fotos
+    enviar_telegram(f"📊 [Gráfico Generado]: {mensaje}")
+    print(f"Simulando envío de imagen: {ruta_imagen}")
