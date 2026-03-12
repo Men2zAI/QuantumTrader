@@ -1,56 +1,58 @@
-import yfinance as yf
-import numpy as np
-import requests # <-- NUEVO MÓDULO DE CAMUFLAJE
+import os
+import pandas as pd
+import alpaca_trade_api as tradeapi
+from dotenv import load_dotenv
+from datetime import datetime, timedelta
+
+load_dotenv()
+alpaca = tradeapi.REST(
+    os.getenv('ALPACA_API_KEY'), 
+    os.getenv('ALPACA_SECRET_KEY'), 
+    'https://paper-api.alpaca.markets', 
+    api_version='v2'
+)
 
 def analizar_opciones(ticker):
+    """
+    Motor refactorizado: Analiza Flujo Institucional y Volatilidad 
+    (Proxy matemático para el mercado de opciones).
+    """
     try:
-        # --- INYECCIÓN DE CAMUFLAJE DE RED ---
-        sesion_camuflada = requests.Session()
-        sesion_camuflada.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        })
+        fin = datetime.now()
+        inicio = fin - timedelta(days=30) # Solo necesitamos el último mes
         
-        tk = yf.Ticker(ticker, session=sesion_camuflada)
-        vencimientos = tk.options
+        barras = alpaca.get_bars(
+            ticker, 
+            tradeapi.rest.TimeFrame.Day, 
+            start=inicio.strftime('%Y-%m-%d'), 
+            end=fin.strftime('%Y-%m-%d')
+        ).df
         
-        if not vencimientos:
+        if barras.empty or len(barras) < 10:
             return 0.50
             
-        # Analizamos el vencimiento más cercano
-        cadena = tk.option_chain(vencimientos[0])
-        calls = cadena.calls
-        puts = cadena.puts
+        # Análisis de Flujo Reciente (Últimos 3 días)
+        volumen_promedio = barras['volume'].mean()
+        volumen_reciente = barras['volume'].iloc[-3:].mean()
         
-        volumen_calls = calls['volume'].sum() if 'volume' in calls else 0
-        volumen_puts = puts['volume'].sum() if 'volume' in puts else 0
+        precio_promedio = barras['close'].mean()
+        precio_actual = barras['close'].iloc[-1]
         
-        if volumen_calls == 0 and volumen_puts == 0:
-            return 0.50
-            
-        ratio_put_call = volumen_puts / (volumen_calls + 1)
+        ratio_volumen = volumen_reciente / volumen_promedio
         
-        # Lógica de mercado:
-        # Ratio bajo (< 0.7) = Mucho optimismo (Calls dominan) -> Probabilidad Alta
-        # Ratio alto (> 1.0) = Miedo (Puts dominan) -> Probabilidad Baja
+        # Lógica de Mercado Institucional:
+        # Alto volumen + Precio subiendo = Compras agresivas (Equivalente a Call Sweep)
+        # Alto volumen + Precio bajando = Distribución / Pánico (Equivalente a Put Sweep)
         
-        if ratio_put_call < 0.6:
-            probabilidad = 0.70 
-        elif ratio_put_call < 0.8:
-            probabilidad = 0.60
-        elif ratio_put_call > 1.2:
-            probabilidad = 0.30
+        if ratio_volumen > 1.3 and precio_actual > precio_promedio:
+            probabilidad = 0.70 # Momentum alcista fuerte
+        elif ratio_volumen > 1.3 and precio_actual < precio_promedio:
+            probabilidad = 0.30 # Momentum bajista fuerte
         else:
-            probabilidad = 0.50
-            
-        # Extraer volatilidad implícita promedio de las opciones ITM (In The Money)
-        # Esto requiere precio actual
-        hist_df = tk.history(period="1d")
-        if not hist_df.empty:
-            precio_actual = hist_df['Close'].iloc[-1]
-            # (Futura expansión: ajustar probabilidad según IV)
+            probabilidad = 0.50 # Mercado lateral o sin interés
             
         return probabilidad
 
     except Exception as e:
-        print(f"⚠️ Error Opciones ({ticker}): {e}")
+        print(f"⚠️ Error Flujo Institucional ({ticker}): {e}")
         return 0.50

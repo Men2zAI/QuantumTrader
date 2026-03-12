@@ -1,24 +1,39 @@
+import os
 import pandas as pd
-import yfinance as yf
-import xgboost as xgb
 import numpy as np
-import requests # <-- NUEVO MÓDULO DE CAMUFLAJE
+import xgboost as xgb
+import alpaca_trade_api as tradeapi
+from dotenv import load_dotenv
+from datetime import datetime, timedelta
+
+# Inicialización de la Troncal Alpaca
+load_dotenv()
+API_KEY = os.getenv('ALPACA_API_KEY')
+SECRET_KEY = os.getenv('ALPACA_SECRET_KEY')
+BASE_URL = 'https://paper-api.alpaca.markets'
+alpaca = tradeapi.REST(API_KEY, SECRET_KEY, BASE_URL, api_version='v2')
 
 def obtener_datos(ticker):
     try:
-        # --- INYECCIÓN DE CAMUFLAJE DE RED ---
-        sesion_camuflada = requests.Session()
-        sesion_camuflada.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        })
+        fin = datetime.now()
+        inicio = fin - timedelta(days=220) # Margen amplio para obtener ~150 días hábiles
         
-        # Pasamos la sesión al descargador
-        df = yf.download(ticker, period="150d", progress=False, session=sesion_camuflada)
+        # Extracción Institucional
+        barras = alpaca.get_bars(
+            ticker, 
+            tradeapi.rest.TimeFrame.Day, 
+            start=inicio.strftime('%Y-%m-%d'), 
+            end=fin.strftime('%Y-%m-%d')
+        ).df
         
-        if df.empty:
-            raise ValueError(f"No hay datos para {ticker}")
+        if barras.empty:
+            raise ValueError(f"Sin datos en Alpaca para {ticker}")
             
-        df = df.dropna()
+        # Homologación de columnas para compatibilidad
+        barras.rename(columns={'close': 'Close', 'volume': 'Volume'}, inplace=True)
+        df = barras[['Close', 'Volume']].copy()
+        
+        # Ingeniería de Características
         df['Retorno'] = df['Close'].pct_change()
         df['Volatilidad'] = df['Close'].rolling(window=14).std()
         df['Media_Movil'] = df['Close'].rolling(window=14).mean()
@@ -27,7 +42,7 @@ def obtener_datos(ticker):
         
         return df
     except Exception as e:
-        print(f"⚠️ Error al obtener datos de {ticker}: {e}")
+        print(f"⚠️ Error Alpaca (Brain) en {ticker}: {e}")
         return pd.DataFrame()
 
 def predecir(df, ticker):
@@ -47,10 +62,8 @@ def predecir(df, ticker):
         n_estimators=100
     )
     
-    # Entrenar con todos los datos menos el último
     modelo.fit(X.iloc[:-1], y.iloc[:-1])
     
-    # Predecir el último
     ultimo_dato = X.iloc[[-1]]
     probabilidad = modelo.predict_proba(ultimo_dato)[0][1] * 100
     prediccion = int(modelo.predict(ultimo_dato)[0])
