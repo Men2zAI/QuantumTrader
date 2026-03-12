@@ -49,7 +49,7 @@ def generar_y_enviar_reporte():
     # 4. Crear el gráfico de crecimiento
     plt.figure(figsize=(10, 5))
     plt.plot(df_balance['fecha'], df_balance['saldo'], marker='o', color='#00ffcc', linewidth=2)
-    plt.title('Rendimiento del Fondo Cuantitativo V9 (Alpaca API)', color='white')
+    plt.title('Rendimiento del Fondo Cuantitativo V10.1 (Alpaca API)', color='white')
     plt.xlabel('Fecha', color='lightgray')
     plt.ylabel('Capital (USD)', color='lightgray')
     plt.grid(True, linestyle='--', alpha=0.3)
