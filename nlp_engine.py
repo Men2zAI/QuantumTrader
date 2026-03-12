@@ -1,38 +1,55 @@
-import yfinance as yf
+import os
+import alpaca_trade_api as tradeapi
 from transformers import pipeline
 import warnings
-import os
+from dotenv import load_dotenv
 
-# Ocultar advertencias de TensorFlow/Torch
+# Ocultar advertencias de TensorFlow/Torch para mantener los logs limpios
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 warnings.filterwarnings('ignore')
 
 print("🧠 [NLP] Despertando red neuronal lingüística (FinBERT)...")
-# Usamos el pipeline de Hugging Face específico para finanzas
 try:
+    # Usamos el pipeline de Hugging Face específico para finanzas
     nlp_pipeline = pipeline("sentiment-analysis", model="ProsusAI/finbert")
 except Exception as e:
     print(f"⚠️ Error cargando FinBERT: {e}")
     nlp_pipeline = None
 
+# 🔌 Inicialización de la Troncal Institucional (Alpaca)
+load_dotenv()
+try:
+    alpaca = tradeapi.REST(
+        os.getenv('ALPACA_API_KEY'), 
+        os.getenv('ALPACA_SECRET_KEY'), 
+        'https://paper-api.alpaca.markets', 
+        api_version='v2'
+    )
+except Exception as e:
+    print(f"⚠️ Error conectando a Alpaca en NLP: {e}")
+    alpaca = None
+
 def analizar_sentimiento(ticker):
     """
-    Sensor NLP: Descarga las últimas noticias del activo y evalúa el sentimiento.
+    Sensor NLP (Alpaca V10): Descarga las últimas noticias institucionales 
+    del activo y evalúa el sentimiento.
     Devuelve un valor entre 0.0 (Pánico) y 1.0 (Euforia).
     """
-    if nlp_pipeline is None:
+    if nlp_pipeline is None or alpaca is None:
         return 0.5
 
     try:
-        # Extraemos el feed de noticias crudo
-        noticias = yf.Ticker(ticker).news
+        # 🌐 Extracción de noticias vía Alpaca (Bypass de Yahoo)
+        noticias = alpaca.get_news(ticker, limit=5)
         if not noticias:
             return 0.5 
 
         textos = []
         # Leemos los 5 titulares más recientes
-        for n in noticias[:5]: 
-            titulo = n.get('title', '')
+        for nota in noticias:
+            # Alpaca devuelve objetos con .headline y .summary
+            titulo = nota.headline if nota.headline else ''
+            
             if titulo:
                 textos.append(titulo)
 
@@ -59,12 +76,12 @@ def analizar_sentimiento(ticker):
         return round(sentimiento_promedio, 4)
 
     except Exception as e:
-        print(f"⚠️ Error leyendo noticias para {ticker}: {e}")
+        print(f"⚠️ Error leyendo noticias (Alpaca) para {ticker}: {e}")
         return 0.5
 
 if __name__ == "__main__":
-    # Prueba rápida del sensor
+    # Prueba rápida del sensor local
     ticker_prueba = "AAPL"
-    print(f"Noticias para {ticker_prueba}...")
+    print(f"📰 Buscando noticias institucionales para {ticker_prueba}...")
     score = analizar_sentimiento(ticker_prueba)
-    print(f"Sentimiento del mercado: {score*100:.2f}%")
+    print(f"🧠 Sentimiento del mercado (FinBERT): {score*100:.2f}%")
