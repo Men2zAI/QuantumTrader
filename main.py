@@ -1,12 +1,14 @@
 import brain
 import lstm_engine
 import nlp_engine
-import options_engine  # <--- EL CUARTO SENSOR INSTITUCIONAL
+import options_engine  
 import broker_api
 import notifier
 import logger_engine
 import pandas as pd
 import report_generator
+import alpaca_trade_api as tradeapi
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,18 +27,64 @@ def calcular_kelly(probabilidad_ia):
     if kelly_seguro <= 0: return 0.0
     return max(0.01, min(kelly_seguro, 0.15))
 
+def ejecutar_reaper():
+    """
+    🪓 MÓDULO REAPER (V10.2): Toma de ganancias y corte de pérdidas automático.
+    Escanea la cartera en vivo y liquida posiciones que toquen los umbrales.
+    """
+    print("\n🪓 Iniciando Módulo Reaper (Take Profit / Stop Loss)...")
+    try:
+        alpaca = tradeapi.REST(
+            os.getenv('ALPACA_API_KEY'), 
+            os.getenv('ALPACA_SECRET_KEY'), 
+            'https://paper-api.alpaca.markets', 
+            api_version='v2'
+        )
+        posiciones = alpaca.list_positions()
+        
+        if not posiciones:
+            print("📂 Cartera vacía. Nada que cosechar por ahora.")
+            return
+
+        for posicion in posiciones:
+            ticker = posicion.symbol
+            qty = posicion.qty
+            # Extraemos el PnL (Ganancia/Pérdida) en porcentaje
+            pnl_pct = float(posicion.unrealized_plpc) * 100 
+            
+            # 🎯 UMBRALES DE SALIDA
+            if pnl_pct >= 6.0:
+                print(f"💰 TAKE PROFIT: {ticker} ha alcanzado +{pnl_pct:.2f}%. Liquidando posición.")
+                alpaca.submit_order(symbol=ticker, qty=qty, side='sell', type='market', time_in_force='day')
+                msg = f"💰 *TAKE PROFIT EJECUTADO*\n📈 Activo: {ticker}\n✅ Ganancia: +{pnl_pct:.2f}%\n📦 Acciones Liquidadas: {qty}"
+                notifier.enviar_telegram(msg)
+                
+            elif pnl_pct <= -3.0:
+                print(f"🛡️ STOP LOSS: {ticker} ha caído a {pnl_pct:.2f}%. Cortando pérdidas.")
+                alpaca.submit_order(symbol=ticker, qty=qty, side='sell', type='market', time_in_force='day')
+                msg = f"🛡️ *STOP LOSS EJECUTADO*\n📉 Activo: {ticker}\n❌ Pérdida: {pnl_pct:.2f}%\n📦 Acciones Liquidadas: {qty}"
+                notifier.enviar_telegram(msg)
+                
+            else:
+                print(f"  ⚖️ {ticker}: {pnl_pct:.2f}% (Manteniendo en cartera)")
+                
+    except Exception as e:
+        print(f"⚠️ Error en Módulo Reaper: {e}")
+
 def ejecutar_analisis_dinamico():
-    print("🚀 INICIANDO ORQUESTADOR V10 (FUSIÓN CUÁDRUPLE + ALPACA)...")
+    print("🚀 INICIANDO ORQUESTADOR V10.2 (REAPER + FUSIÓN CUÁDRUPLE)...")
+    
+    # 1. Ejecutar recolección de ganancias primero
+    ejecutar_reaper()
     
     saldo_actual = broker_api.obtener_poder_adquisitivo()
-    print(f"💰 Poder adquisitivo detectado: ${saldo_actual:.2f}")
+    print(f"\n💰 Poder adquisitivo detectado: ${saldo_actual:.2f}")
     
     if saldo_actual < 100:
         print("⚠️ Capital insuficiente para operar.")
         return
 
     acciones_abiertas = broker_api.sincronizar_cartera()
-    print(f"📂 Cartera actual en broker: {acciones_abiertas}")
 
     candidatos = []
     print("\n📡 Iniciando comité neuronal de cuádruple núcleo...")
@@ -77,7 +125,7 @@ def ejecutar_analisis_dinamico():
     elite_picks = sorted(candidatos, key=lambda x: x['fiabilidad'], reverse=True)[:5]
     
     if not elite_picks:
-        msg_proteccion = f"📡 *Escaneo V10:* Cero señales >54%. Capital de ${saldo_actual:.2f} protegido. 🛡️"
+        msg_proteccion = f"📡 *Escaneo V10.2:* Cero señales >54%. Capital de ${saldo_actual:.2f} protegido. 🛡️"
         print(f"\n{msg_proteccion}")
         notifier.enviar_telegram(msg_proteccion)
     else:
@@ -113,7 +161,7 @@ def ejecutar_analisis_dinamico():
         print(f"⚠️ Error en reporte: {e}")
         
     print("-" * 50)
-    print("🛑 PROTOCOLO V10 FINALIZADO.")
+    print("🛑 PROTOCOLO V10.2 FINALIZADO.")
 
 if __name__ == "__main__":
     ejecutar_analisis_dinamico()
