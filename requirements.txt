@@ -30,3 +30,6 @@ urllib3==2.6.3
 websockets==16.0
 xgboost==3.2.0
 yfinance>=0.2.37
+streamlit
+pandas
+plotly
