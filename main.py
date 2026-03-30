@@ -52,21 +52,30 @@ def ejecutar_reaper():
             # Extraemos el PnL (Ganancia/Pérdida) en porcentaje
             pnl_pct = float(posicion.unrealized_plpc) * 100 
             
+            # Extraemos el precio actual para la contabilidad
+            precio_actual = float(posicion.current_price)
+            monto_recuperado = float(qty) * precio_actual
+
             # 🎯 UMBRALES DE SALIDA
             if pnl_pct >= 6.0:
                 print(f"💰 TAKE PROFIT: {ticker} ha alcanzado +{pnl_pct:.2f}%. Liquidando posición.")
                 alpaca.submit_order(symbol=ticker, qty=qty, side='sell', type='market', time_in_force='day')
+                
+                # NUEVO: Guardar en el CSV
+                logger_engine.guardar_registro(ticker, precio_actual, "VENTA (+6% GANANCIA)", 100.0, monto_recuperado)
+                
                 msg = f"💰 *TAKE PROFIT EJECUTADO*\n📈 Activo: {ticker}\n✅ Ganancia: +{pnl_pct:.2f}%\n📦 Acciones Liquidadas: {qty}"
                 notifier.enviar_telegram(msg)
                 
             elif pnl_pct <= -3.0:
                 print(f"🛡️ STOP LOSS: {ticker} ha caído a {pnl_pct:.2f}%. Cortando pérdidas.")
                 alpaca.submit_order(symbol=ticker, qty=qty, side='sell', type='market', time_in_force='day')
+                
+                # NUEVO: Guardar en el CSV
+                logger_engine.guardar_registro(ticker, precio_actual, "VENTA (-3% PÉRDIDA)", 0.0, monto_recuperado)
+                
                 msg = f"🛡️ *STOP LOSS EJECUTADO*\n📉 Activo: {ticker}\n❌ Pérdida: {pnl_pct:.2f}%\n📦 Acciones Liquidadas: {qty}"
                 notifier.enviar_telegram(msg)
-                
-            else:
-                print(f"  ⚖️ {ticker}: {pnl_pct:.2f}% (Manteniendo en cartera)")
                 
     except Exception as e:
         print(f"⚠️ Error en Módulo Reaper: {e}")
