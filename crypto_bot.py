@@ -36,12 +36,22 @@ def registrar_operacion_virtual(precio, señal, inversion_usdt=0):
         usdt_actual = float(ultima_fila['balance_usdt'])
         btc_actual = float(ultima_fila['balance_btc'])
 
-        # Matemáticas de Ejecución
-        if inversion_usdt > 0 and usdt_actual >= inversion_usdt:
+        # Matemáticas de Ejecución (V10.3 - Bidireccional)
+        if señal == "SELL_ALL" and btc_actual > 0:
+            # 💰 COSECHA: Vender todo el BTC y sumarlo al USDT
+            usdt_obtenido = btc_actual * precio
+            usdt_final = usdt_actual + usdt_obtenido
+            btc_final = 0.0
+            inversion_usdt = usdt_obtenido # Registramos cuánto dinero recuperamos
+            
+        elif inversion_usdt > 0 and usdt_actual >= inversion_usdt:
+            # 🟢 COMPRA: Restar USDT y sumar BTC
             usdt_final = usdt_actual - inversion_usdt
             btc_comprado = inversion_usdt / precio
             btc_final = btc_actual + btc_comprado
+            
         else:
+            # 🔴 ESPERA: No hacer nada
             inversion_usdt = 0.0
             usdt_final = usdt_actual
             btc_final = btc_actual
@@ -114,17 +124,43 @@ def ejecutar_escaneo_tiempo_real(simbolo='BTC/USDT'):
     tipo_op = ""
     icono = ""
 
-    # 🧠 LÓGICA DE DECISIÓN ESCALONADA (DCA V10.2)
-    if prob_subir >= 54.0:
+    # 🧠 LÓGICA DE DECISIÓN ESCALONADA (DCA V10.3 - Módulo Reaper Cripto)
+    
+    # 1. Calcular el Precio Promedio de Compra
+    try:
+        df_hist = pd.read_csv(LOG_FINANCIERO)
+        btc_acumulado = float(df_hist.iloc[-1]['balance_btc'])
+        compras = df_hist[df_hist['operacion'].isin(['BUY_TACTICAL', 'BUY_DCA'])]
+        inversion_total = compras['monto_invertido'].sum()
+        precio_promedio = (inversion_total / btc_acumulado) if btc_acumulado > 0 else 0
+    except:
+        btc_acumulado = 0.0
+        precio_promedio = 0.0
+
+    inversion = 0.0
+    estado = ""
+    tipo_op = ""
+    icono = ""
+
+    # 2. El Árbol de Decisiones
+    # Si tenemos BTC y el precio actual es un 5% MAYOR que nuestro promedio de compra: ¡VENDER!
+    if btc_acumulado > 0.0005 and precio_actual >= (precio_promedio * 1.05):
+        estado = f"COSECHA DE GANANCIAS (+5% sobre ${precio_promedio:,.0f})"
+        tipo_op = "SELL_ALL"
+        icono = "💰"
+        
+    elif prob_subir >= 54.0:
         estado = "COMPRA TÁCTICA"
         tipo_op = "BUY_TACTICAL"
         inversion = usdt_disponible * TACTICAL_FRACTION
         icono = "🟢"
+        
     elif prob_subir >= 48.0 and prob_subir < 54.0:
         estado = "ACUMULACIÓN DCA"
         tipo_op = "BUY_DCA"
         inversion = usdt_disponible * DCA_FRACTION
         icono = "💧"
+        
     else:
         estado = "ESPERA / RIESGO DE CAÍDA"
         tipo_op = "SELL_OR_WAIT"
@@ -132,7 +168,7 @@ def ejecutar_escaneo_tiempo_real(simbolo='BTC/USDT'):
         icono = "🔴"
 
     monto_inv, usdt_restante, btc_acumulado = registrar_operacion_virtual(precio_actual, tipo_op, inversion)
-
+    
     # 📱 NOTIFICACIÓN TELEGRAM REDISEÑADA
     mensaje_tg = (f"🤖 *NODO BETA* (Crypto V10.2)\n"
                   f"💰 *BTC:* ${precio_actual:,.2f}\n"
