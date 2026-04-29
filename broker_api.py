@@ -30,30 +30,26 @@ def obtener_poder_adquisitivo():
 
 def ejecutar_orden_mercado(ticker, monto_inversion, precio_actual):
     """
-    Traduce el dinero calculado por Kelly en cantidad de acciones
-    y dispara la orden directa al Exchange.
+    Ejecuta compras usando Notional Trading (Dólares en lugar de Acciones enteras).
+    Ideal para escalar operaciones con capitales reducidos.
     """
     if not alpaca:
         return "ERROR_API"
 
     try:
-        # Calcular cuántas acciones enteras podemos comprar
-        cantidad_acciones = math.floor(monto_inversion / precio_actual)
+        # Redondear el monto de inversión a 2 decimales (ej. $23.01)
+        monto_redondeado = round(monto_inversion, 2)
         
-        if cantidad_acciones <= 0:
-            print(f"⚠️ {ticker}: Inversión insuficiente para comprar 1 acción entera.")
-            return "FONDOS_INSUFICIENTES"
-
-        # Disparar misil: Orden de Compra a Mercado
+        # Disparar misil: Orden de Compra a Mercado en modo Fraccionario
         orden = alpaca.submit_order(
             symbol=ticker,
-            qty=cantidad_acciones,
+            notional=monto_redondeado,
             side='buy',
             type='market',
-            time_in_force='gtc' # Good 'Til Canceled
+            time_in_force='day' # Alpaca exige 'day' para operaciones notional
         )
         
-        print(f"🎯 [BROKER] ORDEN ENVIADA: Comprando {cantidad_acciones} acciones de {ticker}.")
+        print(f"🎯 [BROKER] ORDEN ENVIADA: Invirtiendo ${monto_redondeado} en {ticker} (Acción Fraccionaria).")
         return "ORDEN_COMPLETADA"
         
     except Exception as e:
