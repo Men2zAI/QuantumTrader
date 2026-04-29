@@ -45,8 +45,23 @@ def obtener_datos_actuales():
     return df
 
 def ejecutar_orden(tipo_orden):
-    """Actuador blindado que ahora devuelve el precio de ejecución para Telegram"""
-    precio = mt5.symbol_info_tick(SIMBOLO).ask if tipo_orden == mt5.ORDER_TYPE_BUY else mt5.symbol_info_tick(SIMBOLO).bid
+    """Actuador blindado con Take Profit y Stop Loss incorporado"""
+    tick = mt5.symbol_info_tick(SIMBOLO)
+    
+    # 🎯 CONFIGURACIÓN DE RIESGO (En Pips)
+    # 1 Pip en EURUSD = 0.0001
+    distancia_sl = 0.0020  # 20 Pips de Stop Loss
+    distancia_tp = 0.0030  # 30 Pips de Take Profit (Buscando ganar más de lo que arriesgamos)
+    
+    if tipo_orden == mt5.ORDER_TYPE_BUY:
+        precio = tick.ask
+        sl = precio - distancia_sl
+        tp = precio + distancia_tp
+    else:
+        precio = tick.bid
+        sl = precio + distancia_sl
+        tp = precio - distancia_tp
+
     modos_llenado = [mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_RETURN]
     
     for filling in modos_llenado:
@@ -56,9 +71,11 @@ def ejecutar_orden(tipo_orden):
             "volume": VOLUMEN_LOTE,
             "type": tipo_orden,
             "price": precio,
+            "sl": sl,           # 🛡️ NUEVO: Límite de pérdida
+            "tp": tp,           # 💰 NUEVO: Cosecha automática
             "deviation": 20,
             "magic": 777777,
-            "comment": "IA Gamma V1",
+            "comment": "IA Gamma V10.3",
             "type_time": mt5.ORDER_TIME_GTC,
             "type_filling": filling,
         }
@@ -66,17 +83,27 @@ def ejecutar_orden(tipo_orden):
         resultado = mt5.order_send(request)
         if resultado.retcode == mt5.TRADE_RETCODE_DONE:
             accion = "COMPRA" if tipo_orden == mt5.ORDER_TYPE_BUY else "VENTA"
-            print(f"✅ ¡{accion} EJECUTADA! Ticket: {resultado.order} | Precio: {resultado.price}")
-            return resultado.price  # 👈 Retornamos el precio real
+            print(f"✅ ¡{accion} EJECUTADA! Ticket: {resultado.order}")
+            print(f"🎯 SL: {sl:.5f} | TP: {tp:.5f}")
+            return resultado.price 
             
-    print("❌ Error: No se pudo ejecutar la orden en ningún modo de llenado.")
-    return None  # 👈 Retornamos Nada si falla
+    print(f"❌ Error de MT5: {resultado.comment}")
+    return None            
+
 
 def ciclo_orquestador():
     if not conectar_mt5():
         return
         
     try:
+        # 🛡️ MÓDULO DE DEFENSA: Evitar ametralladora de órdenes
+        posiciones_abiertas = mt5.positions_get(symbol=SIMBOLO)
+        if posiciones_abiertas is not None and len(posiciones_abiertas) > 0:
+            print(f"🛡️ Ya tienes {len(posiciones_abiertas)} posición abierta en {SIMBOLO}.")
+            print("⏳ Esperando a que toque el Take Profit o Stop Loss automático antes de buscar otra...")
+            return
+            
+                
         df = obtener_datos_actuales()
         if df is None or df.empty:
             print("⚠️ No se pudieron obtener datos del mercado.")

@@ -13,7 +13,7 @@ try:
         os.getenv('ALPACA_BASE_URL'),
         api_version='v2'
     )
-    print("🌐 [API BROKER] Conexión establecida con Alpaca Markets (Modo Paper).")
+    print("🌐 [API BROKER] Conexión establecida con Alpaca Markets.")
 except Exception as e:
     print(f"⚠️ [API BROKER] Error crítico de conexión: {e}")
     alpaca = None

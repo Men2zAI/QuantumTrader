@@ -22,7 +22,7 @@ try:
     alpaca = tradeapi.REST(
         os.getenv('ALPACA_API_KEY'), 
         os.getenv('ALPACA_SECRET_KEY'), 
-        'https://paper-api.alpaca.markets', 
+        'https://api.alpaca.markets', 
         api_version='v2'
     )
 except Exception as e:

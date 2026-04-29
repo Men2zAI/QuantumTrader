@@ -8,7 +8,7 @@ from datetime import datetime
 load_dotenv()
 API_KEY = os.getenv('ALPACA_API_KEY')
 SECRET_KEY = os.getenv('ALPACA_SECRET_KEY')
-BASE_URL = 'https://paper-api.alpaca.markets'
+BASE_URL = 'https://api.alpaca.markets'
 
 def obtener_resumen_global():
     # Sincronización de reloj local
