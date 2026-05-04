@@ -46,27 +46,17 @@ jobs:
         ALPACA_BASE_URL: https://api.alpaca.markets
       run: python main.py
 
-    - name: Sincronizar y guardar resultados en GitHub
+    - name: Empaquetar y Transmitir Telemetría a GitHub
       run: |
         git config --global user.name 'github-actions[bot]'
         git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        git add historial_decisiones.csv reporte_diario.png balance_history.csv
-        git diff --quiet && git diff --staged --quiet || git commit -m "🤖 Actualización V9: Barrido de IA y Operaciones Alpaca"
+        
+        # El comodín universal: atrapa TODOS los archivos modificados o creados (CSV, PNG, etc.)
+        git add .
+        
+        # Ejecuta el commit solo si hay cambios reales. Si no los hay, ignora el error y avanza.
+        git commit -m "🤖 Actualización V9: Barrido de IA, Operaciones en Vivo y Ledger" || echo "No changes to commit"
+        
+        # Sincroniza líneas de tiempo (por si editaste código localmente) y sube todo a la nube
+        git pull --rebase origin main
         git push origin main
-
-    - name: Persistir Ledger Wall Street
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add wallstreet_ledger.csv
-        git diff --quiet && git diff --staged --quiet || (git commit -m "📊 Nodo Alpha: Actualización de Ledger Wall Street [skip ci]" && git push)
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  
-    - name: Commit and Push changes
-      run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add .
-          git commit -m "🤖 Actualización automática del bot" || echo "No changes to commit"
-          git pull --rebase origin main  # <--- ESTA ES LA LÍNEA SALVAVIDAS
-          git push origin main    
