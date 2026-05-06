@@ -3,7 +3,7 @@ name: QuantumTrader AI Bot V9
 on:
   schedule:
     # Escaneo de Alta Frecuencia: Despierta cada 15 minutos (00, 15, 30, 45) de 14:00 a 21:59 UTC (Lun-Vie)
-    - cron: '*/15 14-21 * * 1-5'
+    - cron: '*/15 13-21 * * 1-5'
   workflow_dispatch: # Permite ejecutarlo manualmente con el botón en GitHub
 
 jobs:
